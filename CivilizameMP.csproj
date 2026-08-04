@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>CivilizameMP</AssemblyName>
-    <Description>Mod Multiplayer para Civilizame Esta</Description>
+    <Description>Mod Multiplayer Civilizame Esta Jorge</Description>
     <Version>1.0.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
