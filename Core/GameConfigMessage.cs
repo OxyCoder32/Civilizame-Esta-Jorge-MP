@@ -14,40 +14,55 @@ public class GameConfigMessage
     public int HumanPlayers;
     public string HostName;
     public int HostLeader;
-    public string PlayerSlotsJson;
-    public string AIConfigsJson;
-
+    
+    [SerializeField]
+    private string _playerSlotsJson;
+    
+    [NonSerialized]
     private List<PlayerSlotConfig> _playerSlots;
 
     public List<PlayerSlotConfig> GetPlayerSlots()
     {
-        if (_playerSlots == null)
+        if (_playerSlots == null && !string.IsNullOrEmpty(_playerSlotsJson))
         {
-            _playerSlots = new List<PlayerSlotConfig>();
-            if (!string.IsNullOrEmpty(PlayerSlotsJson))
+            try
             {
-                try
+                var wrapper = JsonUtility.FromJson<PlayerSlotListWrapper>(_playerSlotsJson);
+                if (wrapper != null)
                 {
-                    var wrapper = JsonUtility.FromJson<PlayerSlotWrapper>(PlayerSlotsJson);
-                    if (wrapper != null)
-                        _playerSlots = wrapper.slots ?? new List<PlayerSlotConfig>();
+                    _playerSlots = wrapper.slots;
                 }
-                catch { _playerSlots = new List<PlayerSlotConfig>(); }
             }
+            catch (Exception)
+            {
+                // Silenciar error - no usar CivilizameMPPlugin aquí
+                _playerSlots = new List<PlayerSlotConfig>();
+            }
+            
+            if (_playerSlots == null)
+                _playerSlots = new List<PlayerSlotConfig>();
         }
-        return _playerSlots;
+        return _playerSlots ?? new List<PlayerSlotConfig>();
     }
 
     public void SetPlayerSlots(List<PlayerSlotConfig> slots)
     {
         _playerSlots = slots;
-        var wrapper = new PlayerSlotWrapper { slots = slots };
-        PlayerSlotsJson = JsonUtility.ToJson(wrapper);
+        try
+        {
+            var wrapper = new PlayerSlotListWrapper { slots = slots };
+            _playerSlotsJson = JsonUtility.ToJson(wrapper);
+        }
+        catch (Exception)
+        {
+            // Silenciar error - no usar CivilizameMPPlugin aquí
+            _playerSlotsJson = "{}";
+        }
     }
 }
 
 [System.Serializable]
-public class PlayerSlotWrapper
+public class PlayerSlotListWrapper
 {
     public List<PlayerSlotConfig> slots = new List<PlayerSlotConfig>();
 }

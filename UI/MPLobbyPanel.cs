@@ -5,6 +5,7 @@ using Photon.Realtime;
 using CivilizameMP.Core;
 using CivilizameMP.Network;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace CivilizameMP.UI
 {
@@ -99,7 +100,6 @@ namespace CivilizameMP.UI
 
             _hostSlot.gameObject.SetActive(false);
             _clientSlot.gameObject.SetActive(false);
-
         }
 
         private void CreatePlayerListUI()
@@ -245,7 +245,6 @@ namespace CivilizameMP.UI
             UpdateAllUI();
         }
 
-
         private void UpdateReadyUI()
         {
             var toggleLabel = _readyToggle.transform.parent.Find("ReadyLabel")?.GetComponent<TextMeshProUGUI>();
@@ -263,6 +262,7 @@ namespace CivilizameMP.UI
             if (state.ConnectedPlayers.TryGetValue(actorNumber, out var slot) && slot.IsConnected)
             {
                 slot.IsReady = ready;
+                _remoteReady = ready;
                 CivilizameMPPlugin.Log.LogInfo($"[UI] Slot {slot.SlotIndex+1} ({slot.PlayerName}) actualizado a listo = {ready}");
             }
             
@@ -312,6 +312,7 @@ namespace CivilizameMP.UI
         {
             UpdateRoomLabel();
             UpdatePlayerList();
+            CheckStartReady();
         }
 
         private void UpdateRoomLabel()
@@ -446,38 +447,34 @@ namespace CivilizameMP.UI
                 _statusLabel.text = "Se necesitan al menos 2 jugadores";
                 return;
             }
-            
             if (!state.AreAllPlayersReady())
             {
                 _statusLabel.text = "Todos los jugadores deben estar listos";
                 return;
             }
-            var gameSettings = FindObjectOfType<GameSettings>();
-            if (gameSettings == null)
-            {
-                _statusLabel.text = "Error: No se encontró la configuración del juego";
-                return;
-            }
-
-            var config = new GameConfigMessage
-            {
-                Seed = gameSettings.Seed,
-                MapSize = gameSettings.MapSize,
-                MapType = gameSettings.MapType,
-                Difficulty = gameSettings.Difficulty,
-                TotalPlayers = state.ConnectedPlayerCount,
-                HumanPlayers = state.ConnectedPlayerCount,
-                HostName = state.LocalPlayerName
-            };
             
+            // Construir configuración
             var slots = new List<PlayerSlotConfig>();
             foreach (var player in state.ConnectedPlayers.Values)
             {
                 slots.Add(player);
             }
+            
+            var config = new GameConfigMessage
+            {
+                Seed = MPGameSettingsHelper.GetSeed(),
+                MapSize = MPGameSettingsHelper.GetMapSize(),
+                MapType = MPGameSettingsHelper.GetMapType(),
+                Difficulty = MPGameSettingsHelper.GetDifficulty(),
+                TotalPlayers = state.ConnectedPlayerCount,
+                HumanPlayers = state.ConnectedPlayerCount,
+                HostName = state.LocalPlayerName
+            };
             config.SetPlayerSlots(slots);
             
             CivilizameMPPlugin.Log.LogInfo($"[Host] Iniciando partida con {config.TotalPlayers} jugadores");
+            
+            // Iniciar partida
             HostManager.Instance.StartGame(config);
             MPPanelManager.Instance.HideCurrentPanel();
         }

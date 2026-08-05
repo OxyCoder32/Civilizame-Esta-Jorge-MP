@@ -94,7 +94,7 @@ namespace CivilizameMP.UI
             if (!PhotonManager.Instance.IsConnected)
             {
                 SubscribeConnectEvents();
-                PhotonManager.Instance.Connect(MPConfig.PhotonAppID.Value);
+                PhotonManager.Instance.Connect();
             }
             else
             {

@@ -12,11 +12,14 @@ namespace CivilizameMP.Network
     public class ClientManager : MonoBehaviour
     {
         public static ClientManager Instance { get; private set; }
-        private bool _isLoading;
+        
         private GameConfigMessage _pendingConfig;
         private byte[] _pendingState;
-        private bool _waitingForSceneLoad;
+        private bool _isLoading;
+        private bool _waitingForScene;
         private bool _configReceived;
+        private bool _stateReceived;
+        private bool _initialized;
 
         void Awake()
         {
@@ -27,259 +30,318 @@ namespace CivilizameMP.Network
 
         void Start()
         {
-            PhotonManager.Instance.OnConfigReceived += OnConfigReceived;
-            PhotonManager.Instance.OnStateReceived += OnStateReceived;
-            SceneManager.sceneLoaded += OnSceneLoaded;
+            if (!_initialized)
+            {
+                PhotonManager.Instance.OnConfigReceived += OnConfigReceived;
+                PhotonManager.Instance.OnStateReceived += OnStateReceived;
+                SceneManager.sceneLoaded += OnSceneLoaded;
+                _initialized = true;
+                CivilizameMPPlugin.Log.LogInfo("[ClientManager] Inicializado");
+            }
         }
 
-        void OnConfigReceived(string json)
+        private void OnConfigReceived(string json)
         {
             if (MPStateManager.Instance.IsHost) return;
             
-            var config = JsonUtility.FromJson<GameConfigMessage>(json);
-            if (config == null)
+            try
             {
-                CivilizameMPPlugin.Log.LogError("[Client] Config inválida");
-                return;
-            }
-            
-            _pendingConfig = config;
-            _configReceived = true;
-            
-            var state = MPStateManager.Instance;
-            var slots = config.GetPlayerSlots();
-            
-            foreach (var slot in slots)
-            {
-                if (slot.IsConnected && slot.ActorNumber >= 0)
+                var config = JsonUtility.FromJson<GameConfigMessage>(json);
+                if (config == null)
                 {
-                    if (!state.ConnectedPlayers.ContainsKey(slot.ActorNumber))
+                    CivilizameMPPlugin.Log.LogError("[Client] Config inválida");
+                    return;
+                }
+                
+                _pendingConfig = config;
+                _configReceived = true;
+                
+                var state = MPStateManager.Instance;
+                var slots = config.GetPlayerSlots();
+                
+                if (slots == null || slots.Count == 0)
+                {
+                    CivilizameMPPlugin.Log.LogWarning("[Client] Configuración sin jugadores");
+                    return;
+                }
+                
+                foreach (var slot in slots)
+                {
+                    if (slot.IsConnected && slot.ActorNumber >= 0)
                     {
                         state.RegisterPlayer(slot.ActorNumber, slot.PlayerName, slot.IsHost);
                     }
-                    else
-                    {
-                        state.ConnectedPlayers[slot.ActorNumber].PlayerName = slot.PlayerName;
-                        state.ConnectedPlayers[slot.ActorNumber].SlotIndex = slot.SlotIndex;
-                        state.ConnectedPlayers[slot.ActorNumber].LeaderIndex = slot.LeaderIndex;
-                        state.ConnectedPlayers[slot.ActorNumber].PrimaryColor = slot.PrimaryColor;
-                        state.ConnectedPlayers[slot.ActorNumber].SecondaryColor = slot.SecondaryColor;
-                    }
+                }
+                
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Config recibida: {config.TotalPlayers} jugadores");
+                
+                WriteNewGameData(config);
+                
+                if (_stateReceived && _pendingState != null)
+                {
+                    LoadGameState();
+                }
+                else
+                {
+                    MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
+                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO MAPA", "Esperando el mapa del host...");
                 }
             }
-            
-            CivilizameMPPlugin.Log.LogInfo($"[Client] Config recibida: {config.TotalPlayers} jugadores");
-            
-            MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
-            MPWaitingPanel.Instance?.SetStatus("CONFIGURANDO PARTIDA", $"Esperando inicio de {config.TotalPlayers} jugadores...");
-            
-            WriteNewGameData(config);
-        }
-
-        void OnStateReceived(byte[] state)
-        {
-            if (MPStateManager.Instance.IsHost || _isLoading) return;
-            
-            var currentState = MPStateManager.Instance.CurrentState;
-            if (currentState == MPGameState.PlayingClient || currentState == MPGameState.LoadingGame)
-                return;
-            
-            _isLoading = true;
-            MPStateManager.Instance.SetState(MPGameState.LoadingGame);
-            
-            _pendingState = state;
-            
-            if (_pendingConfig == null || !_configReceived)
+            catch (System.Exception ex)
             {
-                CivilizameMPPlugin.Log.LogWarning("[Client] Esperando configuración...");
-                StartCoroutine(WaitForConfigAndLoad());
-                return;
-            }
-            
-            if (_pendingConfig.GetPlayerSlots() == null || _pendingConfig.GetPlayerSlots().Count == 0)
-            {
-                CivilizameMPPlugin.Log.LogWarning("[Client] Configuración sin jugadores, esperando...");
-                StartCoroutine(WaitForConfigAndLoad());
-                return;
-            }
-            
-            LoadGameState();
-        }
-
-        private IEnumerator WaitForConfigAndLoad()
-        {
-            int timeout = 0;
-            while ((!_configReceived || _pendingConfig == null || _pendingConfig.GetPlayerSlots().Count == 0) && timeout < 100)
-            {
-                yield return new WaitForSeconds(0.1f);
-                timeout++;
-            }
-            
-            if (_configReceived && _pendingConfig != null && _pendingConfig.GetPlayerSlots().Count > 0)
-            {
-                AssignLocalPlayerSlot();
-                LoadGameState();
-            }
-            else
-            {
-                CivilizameMPPlugin.Log.LogError("[Client] Timeout esperando configuración");
-                MPPanelManager.Instance.ShowError("Error: No se recibió la configuración de la partida");
+                CivilizameMPPlugin.Log.LogError($"[Client] Error en OnConfigReceived: {ex}");
             }
         }
 
-        private void AssignLocalPlayerSlot()
+        private void OnStateReceived(byte[] state)
         {
-            var state = MPStateManager.Instance;
-            int localActor = state.LocalActorNumber;
+            if (MPStateManager.Instance.IsHost) return;
+            if (_isLoading) return;
+            if (state == null || state.Length == 0) return;
             
-            if (localActor == -1) return;
-            
-            if (state.ConnectedPlayers.TryGetValue(localActor, out var slot))
+            try
             {
-                state.LocalSlotIndex = slot.SlotIndex;
-                state.LocalPlayerName = slot.PlayerName;
-                state.LocalActorNumber = slot.ActorNumber;
-                CivilizameMPPlugin.Log.LogInfo($"[Client] Slot local asignado: {state.LocalSlotIndex} (Actor: {localActor})");
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Estado recibido: {state.Length} bytes");
+                _pendingState = state;
+                _stateReceived = true;
+                
+                if (_configReceived && _pendingConfig != null)
+                {
+                    LoadGameState();
+                }
+                else
+                {
+                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO CONFIGURACIÓN", "Esperando configuración del host...");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Client] Error en OnStateReceived: {ex}");
             }
         }
 
         private void LoadGameState()
         {
-            StateSyncManager.Instance.DecompressAndLoad(_pendingState);
-            StateSyncManager.Instance.WriteLoadDataForSync();
+            if (_isLoading) return;
+            if (_pendingState == null || _pendingState.Length == 0) return;
+            if (_pendingConfig == null) return;
             
-            MPWaitingPanel.Instance?.SetStatus("CARGANDO PARTIDA", "Cargando escena del juego...");
+            _isLoading = true;
             
-            _waitingForSceneLoad = true;
-            SceneManager.LoadScene("Juego");
+            try
+            {
+                CivilizameMPPlugin.Log.LogInfo("[Client] Cargando estado del juego...");
+                
+                StateSyncManager.Instance.DecompressAndLoad(_pendingState);
+                StateSyncManager.Instance.WriteLoadDataForSync();
+                
+                MPWaitingPanel.Instance?.SetStatus("CARGANDO PARTIDA", "Cargando escena del juego...");
+                
+                _waitingForScene = true;
+                SceneManager.LoadScene("Juego");
+            }
+            catch (System.Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Client] Error en LoadGameState: {ex}");
+                _isLoading = false;
+                MPWaitingPanel.Instance?.SetStatus("ERROR", $"Error al cargar: {ex.Message}");
+            }
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (_waitingForSceneLoad && scene.name == "Juego")
+            if (_waitingForScene && scene.name == "Juego")
             {
-                _waitingForSceneLoad = false;
-                StartCoroutine(LoadGameAfterSceneLoaded());
+                _waitingForScene = false;
+                StartCoroutine(InitializeGameAfterSceneLoad());
             }
         }
 
-        private IEnumerator LoadGameAfterSceneLoaded()
+        private IEnumerator InitializeGameAfterSceneLoad()
         {
             yield return new WaitForSeconds(0.5f);
             
-            var gameManager = GameManager.Instance;
-            if (gameManager != null)
+            GameManager gm = null;
+            try
             {
+                gm = GameManager.Instance;
+                if (gm == null)
+                {
+                    CivilizameMPPlugin.Log.LogError("[Client] GameManager no encontrado");
+                    _isLoading = false;
+                    yield break;
+                }
+                
                 MPWaitingPanel.Instance?.SetStatus("CARGANDO PARTIDA", "Cargando mundo sincronizado...");
                 
-                gameManager.LoadGuardadoSeguridad();
-                CivilizameMPPlugin.Log.LogInfo("[Client] LoadGuardadoSeguridad() llamado");
-                
-                yield return new WaitForSeconds(0.5f);
-                
-                ForceLocalPlayerAssignment();
-                
-                yield return new WaitForSeconds(0.5f);
+                gm.LoadGuardadoSeguridad();
+            }
+            catch (System.Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Client] Error cargando guardado: {ex}");
+                _isLoading = false;
+                yield break;
+            }
+            
+            yield return new WaitForSeconds(0.3f);
+            
+            try
+            {
+                AssignLocalPlayer();
                 
                 MPStateManager.Instance.SetState(MPGameState.PlayingClient);
+                
+                PhotonManager.Instance.SendConfigToAll("{\"ready\":true}");
+            }
+            catch (System.Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Client] Error en inicialización: {ex}");
+                _isLoading = false;
+                yield break;
+            }
+            
+            yield return new WaitForSeconds(0.5f);
+            
+            try
+            {
                 MPWaitingPanel.Instance?.Hide();
                 _isLoading = false;
                 _configReceived = false;
+                _stateReceived = false;
                 
                 CivilizameMPPlugin.Log.LogInfo("[Client] Partida cargada correctamente");
             }
-            else
+            catch (System.Exception ex)
             {
-                CivilizameMPPlugin.Log.LogError("[Client] GameManager no encontrado después de cargar escena");
+                CivilizameMPPlugin.Log.LogError($"[Client] Error finalizando carga: {ex}");
                 _isLoading = false;
             }
         }
 
-        private void ForceLocalPlayerAssignment()
+        private void AssignLocalPlayer()
         {
             var state = MPStateManager.Instance;
-            int localActor = state.LocalActorNumber;
+            var gm = GameManager.Instance;
             
-            if (localActor == -1) return;
-            
-            var gameManager = GameManager.Instance;
-            if (gameManager == null || gameManager.jugadores == null) return;
-            
-            var slot = state.GetPlayerSlot(localActor);
-            if (slot == null) return;
-            
-            foreach (var jugador in gameManager.jugadores)
+            if (gm == null || gm.jugadores == null)
             {
-                if (jugador != null && jugador.RealPlayer)
+                CivilizameMPPlugin.Log.LogError("[Client] GameManager o jugadores null");
+                return;
+            }
+            
+            var localPlayer = state.GetPlayerSlot(state.LocalActorNumber);
+            if (localPlayer == null)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Client] No se encontró slot para Actor {state.LocalActorNumber}");
+                return;
+            }
+            
+            for (int i = 0; i < gm.jugadores.Length; i++)
+            {
+                var jug = gm.jugadores[i];
+                if (jug != null && jug.RealPlayer && jug.Nombre == localPlayer.PlayerName)
                 {
-                    jugador.Nombre = slot.PlayerName;
-                    jugador.lider = (GameSettings.Lideres)slot.LeaderIndex;
-                    jugador.color1 = slot.PrimaryColor;
-                    jugador.color2 = slot.SecondaryColor;
+                    MPMatchState.SetLocalIndex(i);
                     
-                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado: {jugador.Nombre} (Líder: {jugador.lider})");
-                    break;
+                    jug.Nombre = localPlayer.PlayerName;
+                    jug.lider = (GameSettings.Lideres)localPlayer.LeaderIndex;
+                    jug.color1 = localPlayer.PrimaryColor;
+                    jug.color2 = localPlayer.SecondaryColor;
+                    
+                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado: {jug.Nombre} (Índice: {i})");
+                    return;
                 }
             }
+            
+            if (localPlayer.SlotIndex >= 0 && localPlayer.SlotIndex < gm.jugadores.Length)
+            {
+                var jug = gm.jugadores[localPlayer.SlotIndex];
+                if (jug != null && jug.RealPlayer)
+                {
+                    MPMatchState.SetLocalIndex(localPlayer.SlotIndex);
+                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado por slot: {jug.Nombre} (Índice: {localPlayer.SlotIndex})");
+                    return;
+                }
+            }
+            
+            for (int i = 0; i < gm.jugadores.Length; i++)
+            {
+                var jug = gm.jugadores[i];
+                if (jug != null && jug.RealPlayer)
+                {
+                    MPMatchState.SetLocalIndex(i);
+                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado por fallback: {jug.Nombre} (Índice: {i})");
+                    return;
+                }
+            }
+            
+            CivilizameMPPlugin.Log.LogError("[Client] No se pudo asignar el jugador local");
         }
 
         void WriteNewGameData(GameConfigMessage config)
         {
-            int numPlayers = config.TotalPlayers;
-            var playerSlots = config.GetPlayerSlots();
-            
-            var lideres = new GameSettings.Lideres[numPlayers];
-            var realPlayers = new bool[numPlayers];
-            var colors = new Color[numPlayers, 2];
-            var nombres = new string[numPlayers];
-            
-            for (int i = 0; i < numPlayers; i++)
+            try
             {
-                var slot = playerSlots.Find(s => s.SlotIndex == i);
-                if (slot != null && slot.IsConnected)
+                int numPlayers = config.TotalPlayers;
+                var playerSlots = config.GetPlayerSlots();
+                
+                var lideres = new GameSettings.Lideres[numPlayers];
+                var realPlayers = new bool[numPlayers];
+                var colors = new Color[numPlayers, 2];
+                var nombres = new string[numPlayers];
+                
+                for (int i = 0; i < numPlayers; i++)
                 {
-                    lideres[i] = (GameSettings.Lideres)slot.LeaderIndex;
-                    realPlayers[i] = slot.IsHuman;
-                    nombres[i] = slot.PlayerName;
-                    colors[i, 0] = slot.PrimaryColor;
-                    colors[i, 1] = slot.SecondaryColor;
+                    var slot = playerSlots.Find(s => s.SlotIndex == i);
+                    if (slot != null && slot.IsConnected)
+                    {
+                        lideres[i] = (GameSettings.Lideres)slot.LeaderIndex;
+                        realPlayers[i] = slot.IsHuman;
+                        nombres[i] = slot.PlayerName;
+                        colors[i, 0] = slot.PrimaryColor;
+                        colors[i, 1] = slot.SecondaryColor;
+                    }
+                    else
+                    {
+                        lideres[i] = (GameSettings.Lideres)0;
+                        realPlayers[i] = false;
+                        nombres[i] = $"IA {i+1}";
+                        colors[i, 0] = Color.gray;
+                        colors[i, 1] = Color.white;
+                    }
                 }
-                else
+                
+                var data = new NewWorldData(
+                    numPlayers,
+                    false,
+                    config.MapSize,
+                    config.MapType,
+                    lideres,
+                    realPlayers,
+                    colors,
+                    nombres,
+                    true,
+                    false,
+                    false,
+                    config.Difficulty,
+                    false,
+                    false,
+                    config.Seed
+                );
+                
+                string path = Application.persistentDataPath + "/NewGameData.gen";
+                var formatter = new BinaryFormatter();
+                using (var stream = new FileStream(path, FileMode.Create))
                 {
-                    lideres[i] = (GameSettings.Lideres)0;
-                    realPlayers[i] = false;
-                    nombres[i] = $"IA {i+1}";
-                    colors[i, 0] = Color.gray;
-                    colors[i, 1] = Color.white;
+                    formatter.Serialize(stream, data);
                 }
+                
+                CivilizameMPPlugin.Log.LogInfo($"[Client] NewGameData.gen escrito con modo carga=true");
             }
-            
-            var data = new NewWorldData(
-                numPlayers,
-                false,
-                config.MapSize,
-                config.MapType,
-                lideres,
-                realPlayers,
-                colors,
-                nombres,
-                false,
-                false,
-                false,
-                config.Difficulty,
-                false,
-                false,
-                config.Seed
-            );
-            
-            string path = Application.persistentDataPath + "/NewGameData.gen";
-            var formatter = new BinaryFormatter();
-            using (var stream = new FileStream(path, FileMode.Create))
+            catch (System.Exception ex)
             {
-                formatter.Serialize(stream, data);
+                CivilizameMPPlugin.Log.LogError($"[Client] Error escribiendo NewGameData.gen: {ex}");
             }
-            
-            CivilizameMPPlugin.Log.LogInfo($"[Client] NewGameData.gen escrito");
         }
 
         void OnDestroy()

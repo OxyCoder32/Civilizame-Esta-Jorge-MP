@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using CivilizameMP.Core;
 using CivilizameMP.Network;
+using System.Collections; 
 
 namespace CivilizameMP.UI
 {
@@ -75,7 +76,7 @@ namespace CivilizameMP.UI
             if (!PhotonManager.Instance.IsConnected)
             {
                 SubscribeEvents();
-                PhotonManager.Instance.Connect(MPConfig.PhotonAppID.Value);
+                PhotonManager.Instance.Connect();
             }
             else
             {
@@ -86,11 +87,41 @@ namespace CivilizameMP.UI
         private void OnConnected()
         {
             UnsubscribeEvents();
-            string roomName = MPConstants.ROOM_PREFIX + Random.Range(1000, 9999).ToString();
+            
+            // Generar nombre de sala único
+            string roomCode = Random.Range(1000, 9999).ToString();
+            string roomName = MPConstants.ROOM_PREFIX + roomCode;
+            
+            CivilizameMPPlugin.Log.LogInfo($"[Host] Creando sala: {roomName}");
             PhotonManager.Instance.CreateRoom(roomName);
-            MPStateManager.Instance.SetState(MPGameState.InLobby);
-            MPPanelManager.Instance.ShowPanel(MPPanelType.Lobby);
-            _connecting = false;
+            
+            // Esperar a que se cree la sala
+            StartCoroutine(WaitForRoomCreation(roomName));
+        }
+
+        private IEnumerator WaitForRoomCreation(string roomName)
+        {
+            int timeout = 0;
+            while (!PhotonManager.Instance.IsInRoom && timeout < 100)
+            {
+                yield return new WaitForSeconds(0.1f);
+                timeout++;
+            }
+            
+            if (PhotonManager.Instance.IsInRoom)
+            {
+                MPStateManager.Instance.SetState(MPGameState.InLobby);
+                MPPanelManager.Instance.ShowPanel(MPPanelType.Lobby);
+                _connecting = false;
+                CivilizameMPPlugin.Log.LogInfo($"[Host] Sala creada: {roomName}");
+            }
+            else
+            {
+                _statusLabel.text = "Error al crear sala";
+                _statusLabel.color = Color.red;
+                _createButton.interactable = true;
+                _connecting = false;
+            }
         }
 
         private void OnConnectFailed()

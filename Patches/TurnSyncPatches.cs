@@ -1,79 +1,50 @@
 using HarmonyLib;
-using UnityEngine;
 using CivilizameMP.Core;
 using CivilizameMP.Network;
 using CivilizameMP.UI;
+using System.IO;
+using UnityEngine;
 
 namespace CivilizameMP.Patches
 {
-    [HarmonyPatch(typeof(GameManager))]
+    [HarmonyPatch(typeof(Jugador))]
     public class TurnSyncPatches
     {
-        [HarmonyPatch("NextTurn")]
+        [HarmonyPatch("SkipTurn")]
         [HarmonyPostfix]
-        public static void NextTurnPostfix(GameManager __instance)
+        public static void SkipTurnPostfix(Jugador __instance)
         {
             if (!MPStateManager.Instance.IsMultiplayerActive) return;
-
-            int currentTurn = __instance.TurnOrder;
-            bool isHost = MPStateManager.Instance.IsHost;
-            bool isClient = MPStateManager.Instance.IsClient;
-
-            if (isClient && currentTurn == 1)
+            if (!__instance.RealPlayer) return;
+            
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+            if (gm.TurnOrder != MPMatchState.MiIndiceLocal) return;
+            
+            try
             {
-                MPWaitingPanel.Instance?.Hide();
-            }
-
-            if (isHost && currentTurn == 0)
-            {
-                MPWaitingPanel.Instance?.Hide();
-            }
-        }
-
-        [HarmonyPatch("SkipButton")]
-        [HarmonyPrefix]
-        public static bool SkipButtonPrefix(GameManager __instance)
-        {
-            if (!MPStateManager.Instance.IsMultiplayerActive) return true;
-
-            int currentTurn = __instance.TurnOrder;
-            bool isHost = MPStateManager.Instance.IsHost;
-            bool isClient = MPStateManager.Instance.IsClient;
-
-            bool isMyTurn = (isHost && currentTurn == 0) || (isClient && currentTurn == 1);
-            if (!isMyTurn) return false;
-
-                if (MPStateManager.Instance.IsHost)
+                var infoToFile = gm.GetComponent<InformationToFile>();
+                if (infoToFile != null)
                 {
-                    StateSyncManager.Instance.SaveCurrentState();
-                    byte[] state = StateSyncManager.Instance.CompressState();
-                    if (state != null)
-                    {
-                        PhotonManager.Instance.SendState(state);
-                    }
+                    infoToFile.GuardadoSeguridad();
                 }
-
+                if (Tablero.Instance != null)
+                {
+                    Tablero.Instance.GuardadoSeg();
+                }
+                
+                string path = Application.persistentDataPath + "/GuardadoSeguridad.jue";
+                if (!File.Exists(path)) return;
+                
+                byte[] worldData = File.ReadAllBytes(path);
+                PhotonManager.Instance.SendState(worldData);
+                
                 MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
-                MPWaitingPanel.Instance?.SetStatus("ESPERANDO OPONENTE", "Sincronizando partida...");
-
-            return true;
-        }
-
-        [HarmonyPatch("SkipButton")]
-        [HarmonyPostfix]
-        public static void SkipButtonPostfix(GameManager __instance)
-        {
-            if (!MPStateManager.Instance.IsMultiplayerActive) return;
-
-            int currentTurn = __instance.TurnOrder;
-            bool isHost = MPStateManager.Instance.IsHost;
-
-            if (isHost && currentTurn >= 2 && currentTurn < __instance.jugadores.Length)
+                MPWaitingPanel.Instance?.SetStatus("TURNO ENVIADO", "Esperando procesamiento del servidor...");
+            }
+            catch (System.Exception ex)
             {
-                if (!__instance.jugadores[currentTurn].RealPlayer && MainAIManager.Instance != null)
-                {
-                    MainAIManager.Instance.Invoke("PlayTurn", 0.1f);
-                }
+                CivilizameMPPlugin.Log.LogError($"[TurnSync] Error en SkipTurnPostfix: {ex}");
             }
         }
     }

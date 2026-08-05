@@ -43,8 +43,10 @@ namespace CivilizameMP.Network
             CivilizameMPPlugin.Log.LogInfo("[Photon] PhotonManager inicializado");
         }
 
-        public void Connect(string appId)
+        public void Connect()
         {
+            string appId = MPConfig.PhotonAppID.Value;
+            
             if (string.IsNullOrEmpty(appId))
             {
                 CivilizameMPPlugin.Log.LogError("[Photon] AppID vacío. Configura en BepInEx/config/CivilizameMP.cfg");
@@ -66,7 +68,7 @@ namespace CivilizameMP.Network
             _client.AppId = appId;
             _client.AppVersion = MPConstants.GAME_VERSION;
             _client.AuthValues = new AuthenticationValues(Guid.NewGuid().ToString());
-            _client.NickName = MPStateManager.Instance?.LocalPlayerName ?? "Jugador";
+            _client.NickName = MPStateManager.Instance?.LocalPlayerName ?? MPConfig.DefaultPlayerName.Value;
             
             CivilizameMPPlugin.Log.LogInfo($"[Photon] NickName: {_client.NickName}");
             
@@ -387,6 +389,18 @@ namespace CivilizameMP.Network
                     {
                         CivilizameMPPlugin.Log.LogInfo($"[Photon] Config recibida: {configData}");
                         OnConfigReceived?.Invoke(configData);
+                        
+                        if (MPStateManager.Instance.IsHost && configData.Contains("\"ready\":true"))
+                        {
+                            if (HostManager.Instance != null)
+                            {
+                                HostManager.Instance.OnClientReady();
+                            }
+                            else
+                            {
+                                CivilizameMPPlugin.Log.LogWarning("[Photon] HostManager no disponible para procesar ready");
+                            }
+                        }
                     }
                     break;
                 case READY_EVENT:
