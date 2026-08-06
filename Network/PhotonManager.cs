@@ -205,6 +205,13 @@ namespace CivilizameMP.Network
             _client.OpRaiseEvent(CONFIG_EVENT, jsonConfig, opts, SendOptions.SendReliable);
         }
 
+        public void SendStateToAll(byte[] compressedState)
+        {
+            if (!IsInRoom) return;
+            var opts = new RaiseEventOptions { Receivers = ReceiverGroup.All };
+            _client.OpRaiseEvent(STATE_EVENT, compressedState, opts, SendOptions.SendReliable);
+        }
+
         public void SendReady(bool ready)
         {
             if (!IsInRoom) return;
@@ -388,6 +395,16 @@ namespace CivilizameMP.Network
                     if (photonEvent.CustomData is string configData)
                     {
                         CivilizameMPPlugin.Log.LogInfo($"[Photon] Config recibida: {configData}");
+                        
+                        if (configData.Contains("\"hostStarting\":true"))
+                        {
+                            if (!MPStateManager.Instance.IsHost && ClientManager.Instance != null)
+                            {
+                                ClientManager.Instance.OnHostStartedGame();
+                            }
+                            return;
+                        }
+                        
                         OnConfigReceived?.Invoke(configData);
                         
                         if (MPStateManager.Instance.IsHost && configData.Contains("\"ready\":true"))
@@ -395,10 +412,6 @@ namespace CivilizameMP.Network
                             if (HostManager.Instance != null)
                             {
                                 HostManager.Instance.OnClientReady();
-                            }
-                            else
-                            {
-                                CivilizameMPPlugin.Log.LogWarning("[Photon] HostManager no disponible para procesar ready");
                             }
                         }
                     }

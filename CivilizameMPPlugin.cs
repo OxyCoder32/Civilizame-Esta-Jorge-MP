@@ -38,10 +38,6 @@ namespace CivilizameMP
             photonObj.AddComponent<PhotonManager>();
             DontDestroyOnLoad(photonObj);
 
-            var syncObj = new GameObject("StateSyncManager");
-            syncObj.AddComponent<StateSyncManager>();
-            DontDestroyOnLoad(syncObj);
-
             var hostObj = new GameObject("HostManager");
             hostObj.AddComponent<HostManager>();
             DontDestroyOnLoad(hostObj);

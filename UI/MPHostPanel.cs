@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using TMPro;
 using CivilizameMP.Core;
 using CivilizameMP.Network;
-using System.Collections; 
+using System.Collections;
 
 namespace CivilizameMP.UI
 {
@@ -20,15 +20,20 @@ namespace CivilizameMP.UI
         {
             CreateBackground();
             CreateLabel("CREAR PARTIDA", transform, new Vector2(0, 200), 42);
+            
             CreateLabel("Tu nombre:", transform, new Vector2(0, 100), 22);
             _nameInput = CreateInputField("Introduce tu nombre...", transform, new Vector2(0, 60), new Vector2(350, 45));
             _nameInput.text = MPStateManager.Instance.LocalPlayerName;
+            
             _statusLabel = CreateLabel("Estado: Desconectado", transform, new Vector2(0, -20), 20);
             _statusLabel.color = new Color(0.7f, 0.7f, 0.7f, 1f);
+            
             _createButton = CreateButton("CREAR SALA", transform, new Vector2(0, -100), new Vector2(280, 55));
             _createButton.onClick.AddListener(OnCreateClick);
+            
             _backButton = CreateButton("VOLVER", transform, new Vector2(0, -180), new Vector2(200, 50));
             _backButton.onClick.AddListener(OnBackClick);
+            
             StyleButton(_createButton);
             StyleButton(_backButton);
         }

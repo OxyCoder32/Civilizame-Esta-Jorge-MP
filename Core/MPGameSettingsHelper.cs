@@ -17,7 +17,11 @@ namespace CivilizameMP.Core
             if (_initialized) return;
             
             _gameSettings = Object.FindObjectOfType<GameSettings>();
-            if (_gameSettings == null) return;
+            if (_gameSettings == null) 
+            {
+                CivilizameMPPlugin.Log.LogWarning("[MPGameSettingsHelper] GameSettings NO encontrado");
+                return;
+            }
             
             var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
             _seedField = typeof(GameSettings).GetField("Seed", flags);
@@ -26,33 +30,38 @@ namespace CivilizameMP.Core
             _difficultyField = typeof(GameSettings).GetField("dificulatad", flags);
             
             _initialized = true;
+            CivilizameMPPlugin.Log.LogInfo("[MPGameSettingsHelper] Inicializado");
         }
         
         public static int GetSeed()
         {
             Initialize();
-            if (_gameSettings == null || _seedField == null) return Random.Range(0, 1000000);
+            if (_gameSettings == null || _seedField == null) 
+                return Random.Range(0, 1000000);
             return (int)_seedField.GetValue(_gameSettings);
         }
         
         public static int GetMapSize()
         {
             Initialize();
-            if (_gameSettings == null || _mapSizeField == null) return 1;
+            if (_gameSettings == null || _mapSizeField == null) 
+                return 2;
             return (int)(float)_mapSizeField.GetValue(_gameSettings);
         }
         
         public static int GetMapType()
         {
             Initialize();
-            if (_gameSettings == null || _mapTypeField == null) return 0;
+            if (_gameSettings == null || _mapTypeField == null) 
+                return 0;
             return (int)_mapTypeField.GetValue(_gameSettings);
         }
         
         public static int GetDifficulty()
         {
             Initialize();
-            if (_gameSettings == null || _difficultyField == null) return -1;
+            if (_gameSettings == null || _difficultyField == null) 
+                return 2;
             return (int)_difficultyField.GetValue(_gameSettings);
         }
     }

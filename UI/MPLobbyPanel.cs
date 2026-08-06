@@ -1,18 +1,16 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
 using Photon.Realtime;
 using CivilizameMP.Core;
 using CivilizameMP.Network;
 using System.Collections.Generic;
-using System.Reflection;
 
 namespace CivilizameMP.UI
 {
     public class MPLobbyPanel : MPPanelBase
     {
-        private TextMeshProUGUI _hostSlot;
-        private TextMeshProUGUI _clientSlot;
         private TextMeshProUGUI _roomNameLabel;
         private Button _copyButton;
         private Toggle _readyToggle;
@@ -23,6 +21,7 @@ namespace CivilizameMP.UI
         private bool _remoteReady;
         private bool _eventsSubscribed;
         private List<GameObject> _slotUIs = new List<GameObject>();
+        private bool _gameStarting;
 
         protected override void BuildUI()
         {
@@ -48,12 +47,6 @@ namespace CivilizameMP.UI
             var copyColors = _copyButton.colors;
             copyColors.normalColor = new Color(0.2f, 0.5f, 0.8f, 1f);
             _copyButton.colors = copyColors;
-            
-            _hostSlot = CreateLabel("Host: Esperando...", transform, new Vector2(0, 100), 24);
-            _hostSlot.color = new Color(0.8f, 0.8f, 0.8f, 1f);
-            _clientSlot = CreateLabel("Jugador 2: Esperando...", transform, new Vector2(0, 40), 24);
-            _clientSlot.color = new Color(0.6f, 0.6f, 0.6f, 1f);
-            CreateSeparator(new Vector2(0, -20));
             
             CreatePlayerListUI();
             
@@ -97,9 +90,6 @@ namespace CivilizameMP.UI
             
             StyleButton(_startButton);
             StyleButton(_leaveButton);
-
-            _hostSlot.gameObject.SetActive(false);
-            _clientSlot.gameObject.SetActive(false);
         }
 
         private void CreatePlayerListUI()
@@ -109,7 +99,7 @@ namespace CivilizameMP.UI
             var listRect = listContainer.AddComponent<RectTransform>();
             listRect.anchorMin = new Vector2(0.5f, 0.5f);
             listRect.anchorMax = new Vector2(0.5f, 0.5f);
-            listRect.anchoredPosition = new Vector2(0, -30);
+            listRect.anchoredPosition = new Vector2(0, 20);
             listRect.sizeDelta = new Vector2(500, 250);
             
             for (int i = 0; i < MPConstants.MAX_PLAYERS; i++)
@@ -176,26 +166,13 @@ namespace CivilizameMP.UI
             state.IsClient = !state.IsHost;
             
             UpdateAllUI();
-            CivilizameMPPlugin.Log.LogInfo($"[Lobby] Unido a sala. Host: {state.IsHost}, Jugadores: {state.ConnectedPlayerCount}");
-        }
-
-        private void CreateSeparator(Vector2 position)
-        {
-            var sep = new GameObject("Separator");
-            sep.transform.SetParent(transform, false);
-            var image = sep.AddComponent<Image>();
-            image.color = new Color(0.3f, 0.3f, 0.3f, 0.5f);
-            image.raycastTarget = false;
-            var rect = sep.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = new Vector2(400, 2);
+            CivilizameMPPlugin.Log.LogInfo($"[Lobby] Unido a sala. Host: {state.IsHost}");
         }
 
         public override void Show()
         {
             base.Show();
+            _gameStarting = false;
             UpdateAllUI();
         }
 
@@ -206,13 +183,12 @@ namespace CivilizameMP.UI
             GUIUtility.systemCopyBuffer = roomName;
             _statusLabel.text = "¡Copiado al portapapeles!";
             _statusLabel.color = Color.cyan;
-            CivilizameMPPlugin.Log.LogInfo($"Sala copiada: {roomName}");
         }
 
         private void OnPlayerJoined(Player player)
         {
             UpdateAllUI();
-            CivilizameMPPlugin.Log.LogInfo($"Jugador entro: {player.NickName}");
+            CivilizameMPPlugin.Log.LogInfo($"Jugador entró: {player.NickName}");
         }
 
         private void OnPlayerLeft(Player player)
@@ -222,14 +198,13 @@ namespace CivilizameMP.UI
             _startButton.interactable = false;
             _statusLabel.text = "Jugador desconectado";
             _statusLabel.color = Color.red;
-            CivilizameMPPlugin.Log.LogWarning($"Jugador salio: {player?.NickName}");
+            CivilizameMPPlugin.Log.LogWarning($"Jugador salió: {player?.NickName}");
         }
 
         private void OnReadyChanged(bool isReady)
         {
             _localReady = isReady;
             PhotonManager.Instance.SendReady(isReady);
-            UpdateReadyUI();
             
             var state = MPStateManager.Instance;
             for (int i = 0; i < state.PlayerSlots.Count; i++) 
@@ -245,67 +220,17 @@ namespace CivilizameMP.UI
             UpdateAllUI();
         }
 
-        private void UpdateReadyUI()
-        {
-            var toggleLabel = _readyToggle.transform.parent.Find("ReadyLabel")?.GetComponent<TextMeshProUGUI>();
-            if (toggleLabel != null)
-            {
-                toggleLabel.text = _localReady ? "X Listo" : "Listo";
-                toggleLabel.color = _localReady ? Color.green : Color.white;
-            }
-        }
-
         private void OnRemoteReadyChanged(int actorNumber, bool ready)
         {
             var state = MPStateManager.Instance;
-            
             if (state.ConnectedPlayers.TryGetValue(actorNumber, out var slot) && slot.IsConnected)
             {
                 slot.IsReady = ready;
-                _remoteReady = ready;
-                CivilizameMPPlugin.Log.LogInfo($"[UI] Slot {slot.SlotIndex+1} ({slot.PlayerName}) actualizado a listo = {ready}");
+                if (actorNumber != state.LocalActorNumber)
+                    _remoteReady = ready;
+                CivilizameMPPlugin.Log.LogInfo($"[UI] {slot.PlayerName} listo = {ready}");
             }
-            
             UpdateAllUI();
-        }
-
-        private void CheckStartReady()
-        {
-            var state = MPStateManager.Instance;
-            
-            bool hasRemote = false;
-            foreach (var player in state.ConnectedPlayers.Values)
-            {
-                if (player.ActorNumber != state.LocalActorNumber && player.IsConnected)
-                {
-                    hasRemote = true;
-                    break;
-                }
-            }
-            
-            bool canStart = _localReady && _remoteReady && hasRemote;
-            _startButton.interactable = canStart;
-            
-            var image = _startButton.GetComponent<Image>();
-            if (image != null)
-            {
-                image.color = canStart 
-                    ? new Color(0.2f, 0.7f, 0.2f, 1f) 
-                    : new Color(0.3f, 0.3f, 0.3f, 1f);
-            }
-            
-            if (_statusLabel != null)
-            {
-                if (hasRemote)
-                {
-                    if (_localReady && _remoteReady)
-                        _statusLabel.text = "¡Ambos jugadores listos!";
-                    else if (_localReady && !_remoteReady)
-                        _statusLabel.text = "Esperando que el otro jugador este listo...";
-                    else
-                        _statusLabel.text = "Marca 'Listo' para comenzar";
-                }
-            }
         }
 
         private void UpdateAllUI()
@@ -333,50 +258,6 @@ namespace CivilizameMP.UI
             }
         }
 
-        private void UpdatePlayerSlots()
-        {
-            var state = MPStateManager.Instance;
-            
-            string remoteName = null;
-            foreach (var player in state.ConnectedPlayers.Values)
-            {
-                if (player.ActorNumber != state.LocalActorNumber && player.IsConnected)
-                {
-                    remoteName = player.PlayerName;
-                    break;
-                }
-            }
-
-            if (state.IsHost)
-            {
-                string hostStatus = _localReady ? " [X Listo]" : " [Esperando...]";
-                _hostSlot.text = $"Host: {state.LocalPlayerName} (TU){hostStatus}";
-                _hostSlot.color = _localReady ? Color.green : Color.yellow;
-
-                if (!string.IsNullOrEmpty(remoteName))
-                {
-                    string clientStatus = _remoteReady ? " [X Listo]" : " [Esperando...]";
-                    _clientSlot.text = $"Jugador 2: {remoteName}{clientStatus}";
-                    _clientSlot.color = _remoteReady ? Color.green : Color.yellow;
-                }
-                else
-                {
-                    _clientSlot.text = "Jugador 2: Esperando...";
-                    _clientSlot.color = new Color(0.6f, 0.6f, 0.6f, 1f);
-                }
-            }
-            else
-            {
-                string hostStatus = _remoteReady ? " [X Listo]" : " [Esperando...]";
-                _hostSlot.text = $"Host: {remoteName ?? "Host"}{hostStatus}";
-                _hostSlot.color = _remoteReady ? Color.green : Color.yellow;
-
-                string clientStatus = _localReady ? " [X Listo]" : " [Esperando...]";
-                _clientSlot.text = $"Jugador 2: {state.LocalPlayerName} (TU){clientStatus}";
-                _clientSlot.color = _localReady ? Color.green : Color.white; 
-            }
-        }
-
         public void UpdatePlayerList()
         {
             var state = MPStateManager.Instance;
@@ -392,11 +273,10 @@ namespace CivilizameMP.UI
                     var label = slotUI.GetComponentInChildren<TextMeshProUGUI>();
                     if (label != null)
                     {
-                        string status = slot.IsReady ? " [X]" : " [...]";
+                        string status = slot.IsReady ? " [✓]" : " [...]";
                         string hostTag = slot.IsHost ? "[HOST] " : "";
-                        string playerType = slot.IsHuman ? "[H]" : "[AI]";
                         string selfTag = slot.ActorNumber == state.LocalActorNumber ? " (TU)" : "";
-                        label.text = $"{hostTag}J{i+1}: {slot.PlayerName}{selfTag} {playerType}{status}";
+                        label.text = $"{hostTag}J{i+1}: {slot.PlayerName}{selfTag}{status}";
                         label.color = slot.IsReady ? Color.green : Color.yellow;
                     }
                 }
@@ -405,33 +285,35 @@ namespace CivilizameMP.UI
                     slotUI.SetActive(false);
                 }
             }
+        }
+
+        private void CheckStartReady()
+        {
+            var state = MPStateManager.Instance;
             
-            int connected = state.ConnectedPlayerCount;
-            bool allReady = connected >= MPConstants.MIN_PLAYERS && state.AreAllPlayersReady();
+            bool allReady = state.ConnectedPlayerCount >= 2 && state.AreAllPlayersReady();
             
-            if (_startButton != null)
+            _startButton.interactable = allReady && state.IsHost;
+            
+            var colors = _startButton.colors;
+            colors.normalColor = allReady && state.IsHost ? new Color(0.2f, 0.7f, 0.2f, 1f) : new Color(0.3f, 0.3f, 0.3f, 1f);
+            _startButton.colors = colors;
+            
+            if (_statusLabel != null && !_gameStarting)
             {
-                _startButton.interactable = allReady && state.IsHost;
-                var colors = _startButton.colors;
-                colors.normalColor = allReady && state.IsHost ? new Color(0.2f, 0.7f, 0.2f, 1f) : new Color(0.3f, 0.3f, 0.3f, 1f);
-                _startButton.colors = colors;
-            }
-            
-            if (_statusLabel != null)
-            {
-                if (connected < MPConstants.MIN_PLAYERS)
+                if (state.ConnectedPlayerCount < 2)
                 {
-                    _statusLabel.text = $"Esperando jugadores... ({connected}/{MPConstants.MIN_PLAYERS})";
+                    _statusLabel.text = $"Esperando jugadores... ({state.ConnectedPlayerCount}/2)";
                     _statusLabel.color = Color.yellow;
                 }
                 else if (!state.AreAllPlayersReady())
                 {
-                    _statusLabel.text = $"{connected} jugadores conectados - Esperando que todos marquen 'Listo'";
+                    _statusLabel.text = $"{state.ConnectedPlayerCount} jugadores - Esperando que todos marquen 'Listo'";
                     _statusLabel.color = Color.yellow;
                 }
                 else
                 {
-                    _statusLabel.text = $"¡{connected} jugadores listos!";
+                    _statusLabel.text = $"¡{state.ConnectedPlayerCount} jugadores listos!";
                     _statusLabel.color = Color.green;
                 }
             }
@@ -442,7 +324,7 @@ namespace CivilizameMP.UI
             if (!MPStateManager.Instance.IsHost) return;
             
             var state = MPStateManager.Instance;
-            if (state.ConnectedPlayerCount < MPConstants.MIN_PLAYERS) 
+            if (state.ConnectedPlayerCount < 2) 
             {
                 _statusLabel.text = "Se necesitan al menos 2 jugadores";
                 return;
@@ -453,30 +335,23 @@ namespace CivilizameMP.UI
                 return;
             }
             
-            // Construir configuración
-            var slots = new List<PlayerSlotConfig>();
-            foreach (var player in state.ConnectedPlayers.Values)
-            {
-                slots.Add(player);
-            }
+            _gameStarting = true;
+            CivilizameMPPlugin.Log.LogInfo("[Host] Jugadores listos - iniciando partida");
             
-            var config = new GameConfigMessage
-            {
-                Seed = MPGameSettingsHelper.GetSeed(),
-                MapSize = MPGameSettingsHelper.GetMapSize(),
-                MapType = MPGameSettingsHelper.GetMapType(),
-                Difficulty = MPGameSettingsHelper.GetDifficulty(),
-                TotalPlayers = state.ConnectedPlayerCount,
-                HumanPlayers = state.ConnectedPlayerCount,
-                HostName = state.LocalPlayerName
-            };
-            config.SetPlayerSlots(slots);
+            PhotonManager.Instance.SendConfigToAll("{\"hostStarting\":true}");
             
-            CivilizameMPPlugin.Log.LogInfo($"[Host] Iniciando partida con {config.TotalPlayers} jugadores");
-            
-            // Iniciar partida
-            HostManager.Instance.StartGame(config);
             MPPanelManager.Instance.HideCurrentPanel();
+            MPStateManager.Instance.SetState(MPGameState.PlayingHost);
+        }
+
+        private Color GetColorForSlot(int index)
+        {
+            Color[] colors = new Color[]
+            {
+                Color.red, Color.blue, Color.green, Color.yellow,
+                Color.cyan, Color.magenta, new Color(1, 0.5f, 0), Color.white
+            };
+            return colors[index % colors.Length];
         }
 
         private void OnLeaveClick()

@@ -3,7 +3,6 @@ using CivilizameMP.Core;
 using CivilizameMP.UI;
 using CivilizameMP.Network;
 using System.IO;
-using System.Collections;
 using System.Reflection;
 
 namespace CivilizameMP.Network
@@ -38,57 +37,67 @@ namespace CivilizameMP.Network
             }
             _instance = this;
             DontDestroyOnLoad(gameObject);
-            
             Initialize();
         }
 
         private void Initialize()
         {
             if (_initialized) return;
-            
             if (PhotonManager.Instance != null)
             {
                 PhotonManager.Instance.OnStateReceived += OnStateReceived;
                 _initialized = true;
                 CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Inicializado");
             }
+            else
+            {
+                StartCoroutine(WaitForPhotonManager());
+            }
+        }
+
+        private System.Collections.IEnumerator WaitForPhotonManager()
+        {
+            int attempts = 0;
+            while (PhotonManager.Instance == null && attempts < 50)
+            {
+                yield return new WaitForSeconds(0.1f);
+                attempts++;
+            }
+            
+            if (PhotonManager.Instance != null)
+            {
+                PhotonManager.Instance.OnStateReceived += OnStateReceived;
+                _initialized = true;
+                CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Inicializado (tardío)");
+            }
+            else
+            {
+                CivilizameMPPlugin.Log.LogError("[HostStateProcessor] No se pudo inicializar - PhotonManager no encontrado");
+            }
         }
 
         private void OnStateReceived(byte[] stateData)
         {
-            // Solo el host procesa estados
             if (!MPStateManager.Instance.IsHost) return;
             if (_isProcessing) return;
             if (stateData == null || stateData.Length == 0) return;
-            
-            // Verificar que estamos en una partida activa
-            if (MPStateManager.Instance.CurrentState != MPGameState.PlayingHost) return;
             
             _isProcessing = true;
             
             try
             {
-                CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Procesando estado de {stateData.Length} bytes");
-                
-                // 1. Escribir el estado recibido en disco
                 string path = Application.persistentDataPath + "/GuardadoSeguridad.jue";
                 File.WriteAllBytes(path, stateData);
                 
-                // 2. Cargar el estado en el juego
                 var gm = GameManager.Instance;
-                if (gm == null)
-                {
-                    CivilizameMPPlugin.Log.LogError("[HostStateProcessor] GameManager no encontrado");
-                    _isProcessing = false;
-                    return;
+                if (gm == null) 
+                { 
+                    _isProcessing = false; 
+                    return; 
                 }
                 
                 gm.LoadGuardadoSeguridad();
                 
-                // 3. Avanzar el turno nativamente
-                CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Avanzando turno desde {gm.TurnOrder}");
-                
-                // Usar NextTurn para avanzar correctamente
                 var nextTurnMethod = typeof(GameManager).GetMethod("NextTurn", BindingFlags.Public | BindingFlags.Instance);
                 if (nextTurnMethod != null)
                 {
@@ -96,49 +105,28 @@ namespace CivilizameMP.Network
                 }
                 else
                 {
-                    // Fallback: usar SkipTurn del jugador actual
-                    var jug = gm.Jug();
-                    if (jug != null)
-                    {
-                        jug.SkipTurn();
-                    }
-                    else
-                    {
-                        CivilizameMPPlugin.Log.LogError("[HostStateProcessor] No se pudo avanzar el turno");
-                        _isProcessing = false;
-                        return;
-                    }
+                    _isProcessing = false;
+                    return;
                 }
                 
-                CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Turno avanzado a {gm.TurnOrder}");
-                
-                // 4. Guardar el nuevo estado
                 var infoToFile = gm.GetComponent<InformationToFile>();
                 if (infoToFile != null) infoToFile.GuardadoSeguridad();
                 if (Tablero.Instance != null) Tablero.Instance.GuardadoSeg();
                 
-                // 5. Leer y transmitir el nuevo estado
                 if (File.Exists(path))
                 {
                     byte[] updatedState = File.ReadAllBytes(path);
-                    PhotonManager.Instance.SendState(updatedState);
-                    CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Nuevo estado transmitido: {updatedState.Length} bytes");
-                }
-                else
-                {
-                    CivilizameMPPlugin.Log.LogError("[HostStateProcessor] No se pudo guardar el estado actualizado");
+                    PhotonManager.Instance.SendStateToAll(updatedState);
                 }
                 
-                // 6. Mostrar estado en UI
                 if (gm.TurnOrder == MPMatchState.MiIndiceLocal)
                 {
                     MPWaitingPanel.Instance?.Hide();
-                    CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Es tu turno!");
                 }
                 else
                 {
-                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO OPONENTE", "Turno del otro jugador...");
-                    CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Turno del jugador {gm.TurnOrder}");
+                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO OPONENTE", $"Turno del jugador {gm.TurnOrder + 1}");
+                    MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
                 }
                 
                 _isProcessing = false;
