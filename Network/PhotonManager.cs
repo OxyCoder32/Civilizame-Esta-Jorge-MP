@@ -395,7 +395,7 @@ namespace CivilizameMP.Network
                     if (photonEvent.CustomData is string configData)
                     {
                         CivilizameMPPlugin.Log.LogInfo($"[Photon] Config recibida: {configData}");
-                        
+                         
                         if (configData.Contains("\"hostStarting\":true"))
                         {
                             if (!MPStateManager.Instance.IsHost && ClientManager.Instance != null)
@@ -404,16 +404,14 @@ namespace CivilizameMP.Network
                             }
                             return;
                         }
-                        
-                        OnConfigReceived?.Invoke(configData);
-                        
-                        if (MPStateManager.Instance.IsHost && configData.Contains("\"ready\":true"))
+
+                        if (configData.Contains("\"ready\":true"))
                         {
-                            if (HostManager.Instance != null)
-                            {
-                                HostManager.Instance.OnClientReady();
-                            }
+                            CivilizameMPPlugin.Log.LogInfo("[Photon] Ready recibido como payload de configuración, ignorando");
+                            return;
                         }
+                         
+                        OnConfigReceived?.Invoke(configData);
                     }
                     break;
                 case READY_EVENT:
@@ -421,6 +419,11 @@ namespace CivilizameMP.Network
                     {
                         CivilizameMPPlugin.Log.LogInfo($"[Photon] Ready recibido del Actor {photonEvent.Sender}: {ready}");
                         OnRemoteReadyEvent?.Invoke(photonEvent.Sender, ready);
+
+                        if (MPStateManager.Instance.IsHost && ready && HostManager.Instance != null)
+                        {
+                            HostManager.Instance.OnClientReady(photonEvent.Sender, ready);
+                        }
                     }
                     break;
             }

@@ -19,6 +19,7 @@ namespace CivilizameMP.Network
         private int _expectedClients;
         private bool _gameStarted;
         private bool _initialized;
+        private readonly HashSet<int> _readyActors = new HashSet<int>();
 
         private void Awake()
         {
@@ -28,6 +29,7 @@ namespace CivilizameMP.Network
             
             PhotonManager.Instance.OnConfigReceived += OnConfigReceived;
             PhotonManager.Instance.OnPlayerLeftEvent += OnPlayerLeft;
+            PhotonManager.Instance.OnStateReceived += OnStateReceived;
         }
 
         private void Start()
@@ -39,11 +41,18 @@ namespace CivilizameMP.Network
             }
         }
 
+        private int GetExpectedClientCount()
+        {
+            var playerList = PhotonManager.Instance?.GetPlayerList();
+            if (playerList == null) return 0;
+            return Math.Max(0, playerList.Length - 1);
+        }
+
         private void OnPlayerLeft(Photon.Realtime.Player player)
         {
             if (_isGenerating)
             {
-                _expectedClients--;
+                _expectedClients = Math.Max(0, _expectedClients - 1);
                 CivilizameMPPlugin.Log.LogInfo($"[Host] Cliente desconectado, clientes restantes: {_expectedClients}");
             }
         }
@@ -90,9 +99,10 @@ namespace CivilizameMP.Network
             _gameStarted = true;
             _isGenerating = true;
             _clientsReady = 0;
-            
+            _readyActors.Clear();
+             
             var state = MPStateManager.Instance;
-            _expectedClients = state.ConnectedPlayerCount - 1;
+            _expectedClients = GetExpectedClientCount();
             
             MPStateManager.Instance.SetState(MPGameState.PlayingHost);
             
@@ -122,14 +132,26 @@ namespace CivilizameMP.Network
             _isGenerating = false;
             
             var gm2 = GameManager.Instance;
-            if (gm2 != null && gm2.TurnOrder == MPMatchState.MiIndiceLocal)
+            if (gm2 != null)
             {
-                CivilizameMPPlugin.Log.LogInfo("[Host] Es tu turno!");
-            }
-            else
-            {
-                MPWaitingPanel.Instance?.SetStatus("ESPERANDO TURNO", $"Turno del jugador {gm2?.TurnOrder + 1}");
-                MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
+                var currentPlayer = gm2.Jug();
+                bool isHumanTurn = currentPlayer != null && currentPlayer.RealPlayer;
+
+                if (isHumanTurn && gm2.TurnOrder == MPMatchState.MiIndiceLocal)
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[Host] Es tu turno!");
+                }
+                else if (isHumanTurn)
+                {
+                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO TURNO", $"Turno del jugador {gm2.TurnOrder + 1}");
+                    MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
+                }
+                else
+                {
+                    MPWaitingPanel.Instance?.Hide();
+                    MPPanelManager.Instance?.HideCurrentPanel();
+                    CivilizameMPPlugin.Log.LogInfo("[Host] Turno de IA/host: sin cartel de espera");
+                }
             }
             
             CivilizameMPPlugin.Log.LogInfo("[Host] Partida sincronizada correctamente");
@@ -260,7 +282,7 @@ namespace CivilizameMP.Network
                 if (File.Exists(path))
                 {
                     byte[] stateData = File.ReadAllBytes(path);
-                    PhotonManager.Instance.SendStateToAll(stateData);
+                    PhotonManager.Instance.SendState(stateData);
                     CivilizameMPPlugin.Log.LogInfo($"[Host] Estado inicial enviado: {stateData.Length} bytes");
                 }
                 else
@@ -274,14 +296,63 @@ namespace CivilizameMP.Network
             }
         }
 
-        public void OnClientReady()
+        public void OnClientReady(int actorNumber, bool ready)
         {
             if (!MPStateManager.Instance.IsHost) return;
+            if (!ready) return;
             if (_isGenerating) return;
+            if (actorNumber <= 0) return;
+            if (!_readyActors.Add(actorNumber)) return;
+            if (_expectedClients <= 0) _expectedClients = GetExpectedClientCount();
             
             _clientsReady++;
             CivilizameMPPlugin.Log.LogInfo($"[Host] Cliente listo ({_clientsReady}/{_expectedClients})");
             MPWaitingPanel.Instance?.SetStatus("ESPERANDO CLIENTES", $"Clientes listos: {_clientsReady}/{_expectedClients}");
+        }
+
+        private void OnStateReceived(byte[] stateData)
+        {
+            if (!MPStateManager.Instance.IsHost) return;
+            if (stateData == null || stateData.Length == 0) return;
+            if (_isGenerating) return;
+
+            try
+            {
+                string path = Application.persistentDataPath + "/GuardadoSeguridad.jue";
+                File.WriteAllBytes(path, stateData);
+
+                var gm = GameManager.Instance;
+                if (gm == null) return;
+
+                gm.LoadGuardadoSeguridad();
+
+                var currentPlayer = gm.Jug();
+                bool isHumanTurn = currentPlayer != null && currentPlayer.RealPlayer;
+
+                if (isHumanTurn && gm.TurnOrder == MPMatchState.MiIndiceLocal)
+                {
+                   MPWaitingPanel.Instance?.Hide();
+                   MPPanelManager.Instance?.HideCurrentPanel();
+                }
+                else if (isHumanTurn)
+                {
+                   MPWaitingPanel.Instance?.SetStatus("ESPERANDO TU TURNO", $"Turno del jugador {gm.TurnOrder + 1}");
+                   MPPanelManager.Instance?.HideCurrentPanel();
+                   MPPanelManager.Instance?.ShowPanel(MPPanelType.Waiting);
+                }
+                else
+                {
+                   MPWaitingPanel.Instance?.Hide();
+                   MPPanelManager.Instance?.HideCurrentPanel();
+                   CivilizameMPPlugin.Log.LogInfo("[Host] Turno de IA/host: sin cartel de espera");
+                }
+
+                CivilizameMPPlugin.Log.LogInfo($"[Host] Estado recibido y aplicado: {stateData.Length} bytes");
+            }
+            catch (Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Host] Error aplicando estado recibido: {ex}");
+            }
         }
 
         private void OnConfigReceived(string json)
@@ -293,31 +364,7 @@ namespace CivilizameMP.Network
             {
                 if (json.Contains("\"ready\":true"))
                 {
-                    _clientsReady++;
-                    CivilizameMPPlugin.Log.LogInfo($"[Host] Cliente listo ({_clientsReady}/{_expectedClients})");
-                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO CLIENTES", $"Clientes listos: {_clientsReady}/{_expectedClients}");
-                    
-                    // Cuando todos los clientes estén listos, enviar el estado actualizado
-                    if (_clientsReady >= _expectedClients && _expectedClients > 0)
-                    {
-                        CivilizameMPPlugin.Log.LogInfo("[Host] Todos los clientes listos, reenviando estado...");
-                        // Guardar y reenviar estado actualizado
-                        var gm = GameManager.Instance;
-                        if (gm != null)
-                        {
-                            var infoToFile = gm.GetComponent<InformationToFile>();
-                            if (infoToFile != null) infoToFile.GuardadoSeguridad();
-                            if (Tablero.Instance != null) Tablero.Instance.GuardadoSeg();
-                            
-                            string path = Application.persistentDataPath + "/GuardadoSeguridad.jue";
-                            if (File.Exists(path))
-                            {
-                                byte[] stateData = File.ReadAllBytes(path);
-                                PhotonManager.Instance.SendStateToAll(stateData);
-                                CivilizameMPPlugin.Log.LogInfo($"[Host] Estado reenviado: {stateData.Length} bytes");
-                            }
-                        }
-                    }
+                    return;
                 }
             }
             catch (Exception ex)
@@ -333,6 +380,7 @@ namespace CivilizameMP.Network
             {
                 PhotonManager.Instance.OnConfigReceived -= OnConfigReceived;
                 PhotonManager.Instance.OnPlayerLeftEvent -= OnPlayerLeft;
+                PhotonManager.Instance.OnStateReceived -= OnStateReceived;
             }
         }
     }

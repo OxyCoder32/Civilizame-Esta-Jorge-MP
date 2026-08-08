@@ -22,6 +22,8 @@ namespace CivilizameMP.Network
         private bool _stateReceived;
         private bool _initialized;
         private bool _waitingForHostConfig;
+        private bool _initialStateLoaded;
+        private byte[] _lastAppliedState;
 
         void Awake()
         {
@@ -71,6 +73,12 @@ namespace CivilizameMP.Network
                     MPWaitingPanel.Instance?.SetStatus("ESPERANDO PARTIDA", "El host está generando el mundo...");
                     return;
                 }
+
+                if (json.Contains("\"ready\":true"))
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[Client] Ready recibido, ignorando como configuración de partida");
+                    return;
+                }
                 
                 var config = JsonUtility.FromJson<GameConfigMessage>(json);
                 if (config == null)
@@ -78,7 +86,13 @@ namespace CivilizameMP.Network
                     CivilizameMPPlugin.Log.LogError("[Client] Config es null");
                     return;
                 }
-                
+
+                if (config.TotalPlayers <= 0 && (config.PlayerSlots == null || config.PlayerSlots.Count == 0) && string.IsNullOrEmpty(config.HostName))
+                {
+                    CivilizameMPPlugin.Log.LogWarning("[Client] Config recibida vacía o inválida, ignorando");
+                    return;
+                }
+                 
                 // Validar que tenga al menos un jugador
                 if (config.PlayerSlots == null || config.PlayerSlots.Count == 0)
                 {
@@ -135,7 +149,6 @@ namespace CivilizameMP.Network
         private void OnStateReceived(byte[] state)
         {
             if (MPStateManager.Instance.IsHost) return;
-            if (_isLoading) return;
             if (state == null || state.Length == 0) return;
             
             try
@@ -144,8 +157,23 @@ namespace CivilizameMP.Network
                 
                 _pendingState = state;
                 _stateReceived = true;
+
+                if (_isLoading)
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[Client] Estado recibido mientras se cargaba, se aplicará cuando termine la carga");
+                    MPWaitingPanel.Instance?.SetStatus("CARGANDO ESTADO", "Aplicando el último estado del host...");
+                    MPPanelManager.Instance?.HideCurrentPanel();
+                    MPPanelManager.Instance?.ShowPanel(MPPanelType.Waiting);
+                    return;
+                }
+
+                if (!HasStateChanged(state))
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[Client] Estado ya aplicado, ignorando");
+                    return;
+                }
                 
-                if (_configReceived && _pendingConfig != null)
+                if (_initialStateLoaded || (_configReceived && _pendingConfig != null))
                 {
                     LoadGameState();
                 }
@@ -160,6 +188,52 @@ namespace CivilizameMP.Network
             }
         }
 
+        private bool HasStateChanged(byte[] state)
+        {
+            if (state == null) return false;
+            if (_lastAppliedState == null) return true;
+            if (_lastAppliedState.Length != state.Length) return true;
+            for (int i = 0; i < state.Length; i++)
+            {
+                if (_lastAppliedState[i] != state[i]) return true;
+            }
+            return false;
+        }
+
+        private void UpdateTurnUI(GameManager gm)
+        {
+            if (gm == null) return;
+            if (MPMatchState.MiIndiceLocal < 0) return;
+
+            var currentPlayer = gm.Jug();
+            bool isHumanTurn = currentPlayer != null && currentPlayer.RealPlayer;
+
+            if (!isHumanTurn)
+            {
+                MPWaitingPanel.Instance?.Hide();
+                MPPanelManager.Instance?.HideCurrentPanel();
+                CivilizameMPPlugin.Log.LogInfo("[Client] Turno de IA/host: sin cartel de espera");
+                return;
+            }
+
+            if (gm.TurnOrder == MPMatchState.MiIndiceLocal)
+            {
+                MPWaitingPanel.Instance?.Hide();
+                if (MPPanelManager.Instance != null && MPPanelManager.Instance.GetPanel(MPPanelType.Waiting) != null)
+                {
+                    MPPanelManager.Instance.HideCurrentPanel();
+                }
+                CivilizameMPPlugin.Log.LogInfo("[Client] ¡Es tu turno!");
+            }
+            else
+            {
+                MPWaitingPanel.Instance?.SetStatus("ESPERANDO TU TURNO", $"Turno del jugador {gm.TurnOrder + 1}");
+                MPPanelManager.Instance?.HideCurrentPanel();
+                MPPanelManager.Instance?.ShowPanel(MPPanelType.Waiting);
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Esperando turno del jugador {gm.TurnOrder + 1}");
+            }
+        }
+
         private void LoadGameState()
         {
             if (_isLoading) return;
@@ -171,6 +245,15 @@ namespace CivilizameMP.Network
             if (_pendingConfig == null)
             {
                 CivilizameMPPlugin.Log.LogWarning("[Client] No hay configuración para cargar");
+                return;
+            }
+
+            MPWaitingPanel.Instance?.SetStatus("CARGANDO ESTADO", "Aplicando estado sincronizado...");
+            MPPanelManager.Instance?.HideCurrentPanel();
+            MPPanelManager.Instance?.ShowPanel(MPPanelType.Waiting);
+            if (!HasStateChanged(_pendingState))
+            {
+                CivilizameMPPlugin.Log.LogInfo("[Client] Estado ya aplicado, se omite la carga");
                 return;
             }
             
@@ -194,23 +277,22 @@ namespace CivilizameMP.Network
                         gm.LoadGuardadoSeguridad();
                         AssignLocalPlayer();
                         MPStateManager.Instance.SetState(MPGameState.PlayingClient);
-                        PhotonManager.Instance.SendConfigToAll("{\"ready\":true}");
+                        PhotonManager.Instance.SendReady(true);
                         
-                        if (gm.TurnOrder == MPMatchState.MiIndiceLocal)
-                        {
-                            MPWaitingPanel.Instance?.Hide();
-                            CivilizameMPPlugin.Log.LogInfo("[Client] ¡Es tu turno!");
-                        }
-                        else
-                        {
-                            MPWaitingPanel.Instance?.SetStatus("ESPERANDO TU TURNO", $"Turno del jugador {gm.TurnOrder + 1}");
-                            MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
-                        }
+                        UpdateTurnUI(gm);
                         
+                        _lastAppliedState = _pendingState != null ? (byte[])_pendingState.Clone() : null;
                         _isLoading = false;
-                        _configReceived = false;
-                        _stateReceived = false;
+                        _configReceived = true;
+                        _stateReceived = true;
+                        _initialStateLoaded = true;
                         _waitingForHostConfig = false;
+                        
+                        if (_stateReceived && _pendingState != null && HasStateChanged(_pendingState))
+                        {
+                            CivilizameMPPlugin.Log.LogInfo("[Client] Hay un estado posterior pendiente, reaplicándolo");
+                            LoadGameState();
+                        }
                         
                         CivilizameMPPlugin.Log.LogInfo("[Client] Partida cargada correctamente");
                     }
@@ -275,7 +357,7 @@ namespace CivilizameMP.Network
             {
                 AssignLocalPlayer();
                 MPStateManager.Instance.SetState(MPGameState.PlayingClient);
-                PhotonManager.Instance.SendConfigToAll("{\"ready\":true}");
+                PhotonManager.Instance.SendReady(true);
             }
             catch (Exception ex)
             {
@@ -288,21 +370,20 @@ namespace CivilizameMP.Network
             
             try
             {
-                if (gm.TurnOrder == MPMatchState.MiIndiceLocal)
-                {
-                    MPWaitingPanel.Instance?.Hide();
-                    CivilizameMPPlugin.Log.LogInfo("[Client] ¡Es tu turno!");
-                }
-                else
-                {
-                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO TU TURNO", $"Turno del jugador {gm.TurnOrder + 1}");
-                    MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
-                }
+                UpdateTurnUI(gm);
                 
+                _lastAppliedState = _pendingState != null ? (byte[])_pendingState.Clone() : null;
                 _isLoading = false;
-                _configReceived = false;
-                _stateReceived = false;
+                _configReceived = true;
+                _stateReceived = true;
+                _initialStateLoaded = true;
                 _waitingForHostConfig = false;
+                
+                if (_stateReceived && _pendingState != null && HasStateChanged(_pendingState))
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[Client] Hay un estado posterior pendiente, reaplicándolo");
+                    LoadGameState();
+                }
                 
                 CivilizameMPPlugin.Log.LogInfo("[Client] Partida cargada correctamente");
             }
