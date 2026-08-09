@@ -98,36 +98,20 @@ namespace CivilizameMP.Network
                 
                 gm.LoadGuardadoSeguridad();
                 
-                var nextTurnMethod = typeof(GameManager).GetMethod("NextTurn", BindingFlags.Public | BindingFlags.Instance);
-                if (nextTurnMethod != null)
+                if (!MPMatchState.IsLocalTurn(gm))
                 {
-                    nextTurnMethod.Invoke(gm, new object[] { false, 0, false });
-                }
-                else
-                {
-                    _isProcessing = false;
-                    return;
+                    var nextTurnMethod = typeof(GameManager).GetMethod("NextTurn", BindingFlags.Public | BindingFlags.Instance);
+                    if (nextTurnMethod != null)
+                    {
+                        nextTurnMethod.Invoke(gm, new object[] { false, 0, false });
+                    }
                 }
                 
                 var infoToFile = gm.GetComponent<InformationToFile>();
                 if (infoToFile != null) infoToFile.GuardadoSeguridad();
                 if (Tablero.Instance != null) Tablero.Instance.GuardadoSeg();
                 
-                if (File.Exists(path))
-                {
-                    byte[] updatedState = File.ReadAllBytes(path);
-                    PhotonManager.Instance.SendStateToAll(updatedState);
-                }
-                
-                if (gm.TurnOrder == MPMatchState.MiIndiceLocal)
-                {
-                    MPWaitingPanel.Instance?.Hide();
-                }
-                else
-                {
-                    MPWaitingPanel.Instance?.SetStatus("ESPERANDO OPONENTE", $"Turno del jugador {gm.TurnOrder + 1}");
-                    MPPanelManager.Instance.ShowPanel(MPPanelType.Waiting);
-                }
+                UpdateHostTurnUI(gm);
                 
                 _isProcessing = false;
             }
@@ -135,6 +119,35 @@ namespace CivilizameMP.Network
             {
                 CivilizameMPPlugin.Log.LogError($"[HostStateProcessor] Error: {ex}");
                 _isProcessing = false;
+            }
+        }
+
+        private void UpdateHostTurnUI(GameManager gm)
+        {
+            if (gm == null || MPMatchState.MiIndiceLocal < 0) return;
+
+            if (MPMatchState.IsAITurn(gm))
+            {
+                MPWaitingPanel.Instance?.Hide();
+                MPPanelManager.Instance?.HideCurrentPanel();
+                CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Turno de IA: sin cartel de espera");
+                return;
+            }
+
+            if (MPMatchState.IsLocalTurn(gm))
+            {
+                MPWaitingPanel.Instance?.Hide();
+                MPPanelManager.Instance?.HideCurrentPanel();
+                CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] ¡Es tu turno!");
+                return;
+            }
+
+            if (MPMatchState.IsRemoteHumanTurn(gm))
+            {
+                MPWaitingPanel.Instance?.SetStatus("ESPERANDO TU TURNO", $"Turno del jugador {gm.TurnOrder + 1}");
+                MPPanelManager.Instance?.HideCurrentPanel();
+                MPPanelManager.Instance?.ShowPanel(MPPanelType.Waiting);
+                CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Turno del jugador {gm.TurnOrder}");
             }
         }
 

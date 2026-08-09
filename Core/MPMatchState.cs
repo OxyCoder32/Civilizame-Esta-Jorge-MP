@@ -23,5 +23,35 @@ namespace CivilizameMP.Core
             MiIndiceLocal = index;
             CivilizameMPPlugin.Log.LogInfo($"[MPMatchState] Índice local asignado: {MiIndiceLocal}");
         }
+
+        public static bool IsRemoteHumanTurn(GameManager gm)
+        {
+            if (gm == null || gm.jugadores == null) return false;
+            if (gm.TurnOrder < 0 || gm.TurnOrder >= gm.jugadores.Length) return false;
+            if (gm.TurnOrder == MiIndiceLocal) return false;
+
+            var jug = gm.jugadores[gm.TurnOrder];
+            if (jug == null) return false;
+
+            return jug.RealPlayer;
+        }
+
+        public static bool IsAITurn(GameManager gm)
+        {
+            if (gm == null || gm.jugadores == null) return false;
+            if (gm.TurnOrder < 0 || gm.TurnOrder >= gm.jugadores.Length) return false;
+
+            var jug = gm.jugadores[gm.TurnOrder];
+            if (jug == null) return false;
+
+            return !jug.RealPlayer;
+        }
+
+        public static bool IsLocalTurn(GameManager gm)
+        {
+            if (gm == null) return false;
+            if (!IsInitialized) return false;
+            return gm.TurnOrder == MiIndiceLocal;
+        }
     }
 }

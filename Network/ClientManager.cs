@@ -24,6 +24,7 @@ namespace CivilizameMP.Network
         private bool _waitingForHostConfig;
         private bool _initialStateLoaded;
         private byte[] _lastAppliedState;
+        private readonly Queue<byte[]> _pendingStateQueue = new Queue<byte[]>();
 
         void Awake()
         {
@@ -93,11 +94,9 @@ namespace CivilizameMP.Network
                     return;
                 }
                  
-                // Validar que tenga al menos un jugador
                 if (config.PlayerSlots == null || config.PlayerSlots.Count == 0)
                 {
                     CivilizameMPPlugin.Log.LogWarning("[Client] Config sin PlayerSlots, creando desde TotalPlayers");
-                    // Crear slots básicos
                     config.PlayerSlots = new List<PlayerSlotConfig>();
                     for (int i = 0; i < config.TotalPlayers; i++)
                     {
@@ -155,17 +154,15 @@ namespace CivilizameMP.Network
             {
                 CivilizameMPPlugin.Log.LogInfo($"[Client] Estado recibido: {state.Length} bytes");
                 
-                _pendingState = state;
-                _stateReceived = true;
-
                 if (_isLoading)
                 {
-                    CivilizameMPPlugin.Log.LogInfo("[Client] Estado recibido mientras se cargaba, se aplicará cuando termine la carga");
-                    MPWaitingPanel.Instance?.SetStatus("CARGANDO ESTADO", "Aplicando el último estado del host...");
-                    MPPanelManager.Instance?.HideCurrentPanel();
-                    MPPanelManager.Instance?.ShowPanel(MPPanelType.Waiting);
+                    _pendingStateQueue.Enqueue(state);
+                    CivilizameMPPlugin.Log.LogInfo($"[Client] Estado encolado durante carga ({_pendingStateQueue.Count} pendientes)");
                     return;
                 }
+                
+                _pendingState = state;
+                _stateReceived = true;
 
                 if (!HasStateChanged(state))
                 {
@@ -205,18 +202,15 @@ namespace CivilizameMP.Network
             if (gm == null) return;
             if (MPMatchState.MiIndiceLocal < 0) return;
 
-            var currentPlayer = gm.Jug();
-            bool isHumanTurn = currentPlayer != null && currentPlayer.RealPlayer;
-
-            if (!isHumanTurn)
+            if (MPMatchState.IsAITurn(gm))
             {
                 MPWaitingPanel.Instance?.Hide();
                 MPPanelManager.Instance?.HideCurrentPanel();
-                CivilizameMPPlugin.Log.LogInfo("[Client] Turno de IA/host: sin cartel de espera");
+                CivilizameMPPlugin.Log.LogInfo("[Client] Turno de IA: sin cartel de espera");
                 return;
             }
 
-            if (gm.TurnOrder == MPMatchState.MiIndiceLocal)
+            if (MPMatchState.IsLocalTurn(gm))
             {
                 MPWaitingPanel.Instance?.Hide();
                 if (MPPanelManager.Instance != null && MPPanelManager.Instance.GetPanel(MPPanelType.Waiting) != null)
@@ -224,8 +218,10 @@ namespace CivilizameMP.Network
                     MPPanelManager.Instance.HideCurrentPanel();
                 }
                 CivilizameMPPlugin.Log.LogInfo("[Client] ¡Es tu turno!");
+                return;
             }
-            else
+
+            if (MPMatchState.IsRemoteHumanTurn(gm))
             {
                 MPWaitingPanel.Instance?.SetStatus("ESPERANDO TU TURNO", $"Turno del jugador {gm.TurnOrder + 1}");
                 MPPanelManager.Instance?.HideCurrentPanel();
@@ -266,11 +262,9 @@ namespace CivilizameMP.Network
                 string path = Application.persistentDataPath + "/GuardadoSeguridad.jue";
                 File.WriteAllBytes(path, _pendingState);
                 
-                // Verificar si ya estamos en la escena Juego
                 Scene currentScene = SceneManager.GetActiveScene();
                 if (currentScene.name == "Juego")
                 {
-                    // Ya estamos en la escena, cargar directamente
                     var gm = GameManager.Instance;
                     if (gm != null)
                     {
@@ -288,11 +282,7 @@ namespace CivilizameMP.Network
                         _initialStateLoaded = true;
                         _waitingForHostConfig = false;
                         
-                        if (_stateReceived && _pendingState != null && HasStateChanged(_pendingState))
-                        {
-                            CivilizameMPPlugin.Log.LogInfo("[Client] Hay un estado posterior pendiente, reaplicándolo");
-                            LoadGameState();
-                        }
+                        ProcessPendingStates();
                         
                         CivilizameMPPlugin.Log.LogInfo("[Client] Partida cargada correctamente");
                     }
@@ -304,7 +294,6 @@ namespace CivilizameMP.Network
                 }
                 else
                 {
-                    // Cargar la escena Juego
                     _waitingForScene = true;
                     MPWaitingPanel.Instance?.SetStatus("CARGANDO PARTIDA", "Cargando escena del juego...");
                     SceneManager.LoadScene("Juego");
@@ -314,6 +303,28 @@ namespace CivilizameMP.Network
             {
                 CivilizameMPPlugin.Log.LogError($"[Client] Error en LoadGameState: {ex}");
                 _isLoading = false;
+            }
+        }
+
+        private void ProcessPendingStates()
+        {
+            while (_pendingStateQueue.Count > 0)
+            {
+                byte[] queuedState = _pendingStateQueue.Dequeue();
+                if (queuedState == null || queuedState.Length == 0) continue;
+                
+                if (!HasStateChanged(queuedState))
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[Client] Estado encolado ya aplicado, ignorando");
+                    continue;
+                }
+                
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Aplicando estado encolado: {queuedState.Length} bytes");
+                _pendingState = queuedState;
+                _stateReceived = true;
+                LoadGameState();
+                
+                if (_isLoading) break;
             }
         }
 
@@ -379,11 +390,7 @@ namespace CivilizameMP.Network
                 _initialStateLoaded = true;
                 _waitingForHostConfig = false;
                 
-                if (_stateReceived && _pendingState != null && HasStateChanged(_pendingState))
-                {
-                    CivilizameMPPlugin.Log.LogInfo("[Client] Hay un estado posterior pendiente, reaplicándolo");
-                    LoadGameState();
-                }
+                ProcessPendingStates();
                 
                 CivilizameMPPlugin.Log.LogInfo("[Client] Partida cargada correctamente");
             }
