@@ -329,14 +329,9 @@ namespace CivilizameMP.UI
                 _statusLabel.text = "Se necesitan al menos 2 jugadores";
                 return;
             }
-            if (!state.AreAllPlayersReady())
-            {
-                _statusLabel.text = "Todos los jugadores deben estar listos";
-                return;
-            }
             
             _gameStarting = true;
-            CivilizameMPPlugin.Log.LogInfo("[Host] Jugadores listos - iniciando partida");
+            CivilizameMPPlugin.Log.LogInfo("[Host] Iniciando partida");
             
             PhotonManager.Instance.SendConfigToAll("{\"hostStarting\":true}");
             

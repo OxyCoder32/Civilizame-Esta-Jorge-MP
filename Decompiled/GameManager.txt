@@ -1,0 +1,1966 @@
+using System;
+using System.Collections;
+using UnityEngine;
+
+// Token: 0x02000018 RID: 24
+public class GameManager : MonoBehaviour
+{
+	// Token: 0x17000003 RID: 3
+	// (get) Token: 0x060000B8 RID: 184 RVA: 0x00015D9B File Offset: 0x00013F9B
+	public static GameManager Instance
+	{
+		get
+		{
+			return GameManager._instance;
+		}
+	}
+
+	// Token: 0x060000B9 RID: 185 RVA: 0x00015DA2 File Offset: 0x00013FA2
+	private void Awake()
+	{
+		GameManager._instance = base.GetComponent<GameManager>();
+		this.myRelationshipManager = base.GetComponent<RelationshipManager>();
+		this.myVictoryManager = base.GetComponent<VictoryManager>();
+	}
+
+	// Token: 0x060000BA RID: 186 RVA: 0x00015DC7 File Offset: 0x00013FC7
+	public CultureManager getCultMan()
+	{
+		return this.cultureManager;
+	}
+
+	// Token: 0x060000BB RID: 187 RVA: 0x00015DCF File Offset: 0x00013FCF
+	public RelCreator getRelCreator()
+	{
+		return this.mRelCreator;
+	}
+
+	// Token: 0x060000BC RID: 188 RVA: 0x00015DD7 File Offset: 0x00013FD7
+	public RelationshipManager GetRelationshipManager()
+	{
+		return this.myRelationshipManager;
+	}
+
+	// Token: 0x060000BD RID: 189 RVA: 0x00015DDF File Offset: 0x00013FDF
+	public Jugador Jug()
+	{
+		if (this.TurnOrder == -1)
+		{
+			return null;
+		}
+		return this.jugadores[this.TurnOrder];
+	}
+
+	// Token: 0x060000BE RID: 190 RVA: 0x00015DF9 File Offset: 0x00013FF9
+	public bool GetAutoSkip()
+	{
+		return this.AutoSkip && TutorialManager.Instance.AutoSkip();
+	}
+
+	// Token: 0x060000BF RID: 191 RVA: 0x00015E0F File Offset: 0x0001400F
+	public void SetCasillasEstables(int i)
+	{
+		this.casillas_estables = i;
+		this.CheckCasillasCanWin();
+	}
+
+	// Token: 0x060000C0 RID: 192 RVA: 0x00015E20 File Offset: 0x00014020
+	public bool IsMaravDone(Maravilla m)
+	{
+		bool flag = false;
+		for (int i = 0; i < this.maxMarav; i++)
+		{
+			if (this.MaravsDone[i] == m)
+			{
+				flag = true;
+			}
+		}
+		return flag;
+	}
+
+	// Token: 0x060000C1 RID: 193 RVA: 0x00015E53 File Offset: 0x00014053
+	public float Scale()
+	{
+		return this.cam.Scale();
+	}
+
+	// Token: 0x060000C2 RID: 194 RVA: 0x00015E60 File Offset: 0x00014060
+	public void AssignRelCreator(RelCreator x)
+	{
+		this.mRelCreator = x;
+	}
+
+	// Token: 0x060000C3 RID: 195 RVA: 0x00015E69 File Offset: 0x00014069
+	public void AssignGoldenAgeManager(GoldenAgeManager x)
+	{
+		this.mGoldenAgeManager = x;
+	}
+
+	// Token: 0x060000C4 RID: 196 RVA: 0x00015E72 File Offset: 0x00014072
+	public void AssignUITribMan(UITribuManager x)
+	{
+		this.mUITribMan = x;
+	}
+
+	// Token: 0x060000C5 RID: 197 RVA: 0x00015E7B File Offset: 0x0001407B
+	public void AssignmyUnitMenu(UnitMenu x)
+	{
+		this.myUnitMenu = x;
+	}
+
+	// Token: 0x060000C6 RID: 198 RVA: 0x00015E84 File Offset: 0x00014084
+	public void AssignmyEscGuardYCarg(EscGuardaoYCargadoMenu x)
+	{
+		this.myEscGuardYCarg = x;
+	}
+
+	// Token: 0x060000C7 RID: 199 RVA: 0x00015E8D File Offset: 0x0001408D
+	public void AssignCultureManager(CultureManager x)
+	{
+		this.cultureManager = x;
+	}
+
+	// Token: 0x060000C8 RID: 200 RVA: 0x00015E96 File Offset: 0x00014096
+	public void AssignPlayerCreator(PlayerCreator x)
+	{
+		this.playerCreator = x;
+	}
+
+	// Token: 0x060000C9 RID: 201 RVA: 0x00015E9F File Offset: 0x0001409F
+	public void AssignScienceManager(ScienceManager x)
+	{
+		this.scienceManager = x;
+	}
+
+	// Token: 0x060000CA RID: 202 RVA: 0x00015EA8 File Offset: 0x000140A8
+	public void AssignGenerationManager(GenerationManager x)
+	{
+		this.generationManager = x;
+	}
+
+	// Token: 0x060000CB RID: 203 RVA: 0x00015EB1 File Offset: 0x000140B1
+	public void AssignCityThingBuilt(CityThingBuilt x)
+	{
+		this.myCityThingBuilt = x;
+	}
+
+	// Token: 0x060000CC RID: 204 RVA: 0x00015EBA File Offset: 0x000140BA
+	public void AssignCityThingsToBuild(CityThingsToBUild x)
+	{
+		this.myCityThingsToBuild = x;
+	}
+
+	// Token: 0x060000CD RID: 205 RVA: 0x00015EC3 File Offset: 0x000140C3
+	public void AssignUICity(UICityManager x)
+	{
+		this.UIcity = x;
+	}
+
+	// Token: 0x060000CE RID: 206 RVA: 0x00015ECC File Offset: 0x000140CC
+	public void AssignUIPlayer(UIPlayerManager x)
+	{
+		this.UIplayer = x;
+	}
+
+	// Token: 0x060000CF RID: 207 RVA: 0x00015ED5 File Offset: 0x000140D5
+	public void AssignFOW(FogOfWarManager x)
+	{
+		this.FOW = x;
+	}
+
+	// Token: 0x060000D0 RID: 208 RVA: 0x00015EDE File Offset: 0x000140DE
+	public void AssignUnitGenerator(UnitGenerator x)
+	{
+		this.unitGenerator = x;
+	}
+
+	// Token: 0x060000D1 RID: 209 RVA: 0x00015EE7 File Offset: 0x000140E7
+	public void AssignCityGenerator(CityGenerator x)
+	{
+		this.cityGenerator = x;
+	}
+
+	// Token: 0x060000D2 RID: 210 RVA: 0x00015EF0 File Offset: 0x000140F0
+	public void AssignCamera(TheCamera camera)
+	{
+		this.cam = camera;
+	}
+
+	// Token: 0x060000D3 RID: 211 RVA: 0x00015EFC File Offset: 0x000140FC
+	public void Comienzo()
+	{
+		this.IP1 = Random.Range(1, 1000000);
+		this.IP2 = Random.Range(1, 1000000);
+		this.IP3 = Random.Range(1, 1000000);
+		this.RecibeJugadores(this.generationManager._NumJug, this.generationManager._lideres, this.generationManager._colors, this.generationManager.nombres, this.generationManager._realPlayers);
+		this.MundoCargado(false);
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null && this.jugadores[i].lider == GameSettings.Lideres.Bowser)
+			{
+				this.BowserInMatch = true;
+			}
+			if (this.jugadores[i] != null && this.jugadores[i].lider == GameSettings.Lideres.Napoleon)
+			{
+				this.FranceInMatch = true;
+			}
+			if (this.jugadores[i] != null && this.jugadores[i].lider == GameSettings.Lideres.Gilgamesh)
+			{
+				this.GilgameshInMatch = true;
+			}
+		}
+		MainAIManager.Instance.init();
+		ReligionManager.Instance.InitColors();
+		this.CheckIfOnlyOneRealPlayer();
+		if (this.guardAutom)
+		{
+			this.initGuardSeg();
+		}
+		this.allowedToWinDifficulty = this.onlyOneRealPlayer;
+		this.CheckCasillasCanWin();
+	}
+
+	// Token: 0x060000D4 RID: 212 RVA: 0x00016048 File Offset: 0x00014248
+	private void initGuardSeg()
+	{
+		bool flag = false;
+		int num = 0;
+		while (num < this.jugadores.Length && !flag)
+		{
+			if (this.jugadores[num] != null && this.jugadores[num].RealPlayer)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (flag)
+		{
+			this.guardSegCont = 0;
+			this.guardSegStart = num;
+			return;
+		}
+		this.guardAutom = false;
+	}
+
+	// Token: 0x060000D5 RID: 213 RVA: 0x000160AC File Offset: 0x000142AC
+	private void RecibeJugadores(int NumJug, GameSettings.Lideres[] lideresCargados, Color[,] colors, string[] nombre, bool[] realPlayers)
+	{
+		this.jugadores = new Jugador[NumJug];
+		this.seenVictory = new bool[NumJug];
+		for (int i = 0; i < NumJug; i++)
+		{
+			if (this.playerCreator != null)
+			{
+				this.jugadores[i] = this.playerCreator.CreaJugador(lideresCargados[i], colors[i, 0], colors[i, 1], nombre[i], realPlayers[i]);
+			}
+		}
+		this.myRelationshipManager.CreateRelationships(this.jugadores);
+		this.cultureManager.init(NumJug, false);
+		this.CheckIfOnlyOneRealPlayer();
+	}
+
+	// Token: 0x060000D6 RID: 214 RVA: 0x00016140 File Offset: 0x00014340
+	public void MundoCargado(bool Cargado = false)
+	{
+		if (!Cargado)
+		{
+			this.TurnOrder = -1;
+		}
+		this.FOW.Inicialize(this.jugadores.Length);
+		Tablero.Instance.Render(false);
+		Tablero.Instance.ResetIcons();
+		this.playing = true;
+		this.cultureManager.init(this.jugadores.Length, Cargado);
+		this.NextTurn(false, 0, Cargado);
+	}
+
+	// Token: 0x060000D7 RID: 215 RVA: 0x000161A3 File Offset: 0x000143A3
+	public void InicializeColonos(Jugador jug)
+	{
+		this.unitGenerator.InitialColono(jug);
+	}
+
+	// Token: 0x060000D8 RID: 216 RVA: 0x000161B4 File Offset: 0x000143B4
+	private void CheckIfMilitarVictory()
+	{
+		int num = 0;
+		int num2 = -1;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null)
+			{
+				num++;
+				num2 = i;
+			}
+		}
+		if (num == 1 && !this.GameWon)
+		{
+			this.GameWon = true;
+			this._scienceTree = true;
+			this.playerWinner = num2;
+			this.victoryType = 0;
+			this.myVictoryManager.MilitarVictory();
+		}
+	}
+
+	// Token: 0x060000D9 RID: 217 RVA: 0x00016221 File Offset: 0x00014421
+	public void ContinuePlaying()
+	{
+		this._scienceTree = false;
+	}
+
+	// Token: 0x060000DA RID: 218 RVA: 0x0001622A File Offset: 0x0001442A
+	public void CheckIfScienceVictory()
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this._scienceTree = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 1;
+			this.myVictoryManager.ScientificVictory();
+		}
+	}
+
+	// Token: 0x060000DB RID: 219 RVA: 0x00016260 File Offset: 0x00014460
+	public void AICheckIfScienceVictory()
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 1;
+			this.myVictoryManager.ScientificVictory();
+		}
+	}
+
+	// Token: 0x060000DC RID: 220 RVA: 0x0001628F File Offset: 0x0001448F
+	public void CheckIfCulturalVictory()
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this._scienceTree = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 2;
+			this.myVictoryManager.CulturalVictory();
+		}
+	}
+
+	// Token: 0x060000DD RID: 221 RVA: 0x000162C5 File Offset: 0x000144C5
+	public void AICheckIfCulturalVictory()
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 2;
+			this.myVictoryManager.CulturalVictory();
+		}
+	}
+
+	// Token: 0x060000DE RID: 222 RVA: 0x000162F4 File Offset: 0x000144F4
+	public void CheckIfReligiousVictory(Sprite s)
+	{
+		this.HideReligionTree();
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this._scienceTree = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 3;
+			this.myVictoryManager.ReligiousVictory(s);
+		}
+	}
+
+	// Token: 0x060000DF RID: 223 RVA: 0x00016331 File Offset: 0x00014531
+	public void AICheckIfReligiousVictory(Sprite s)
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 3;
+			this.myVictoryManager.ReligiousVictory(s);
+		}
+	}
+
+	// Token: 0x060000E0 RID: 224 RVA: 0x00016361 File Offset: 0x00014561
+	public void VictoriaRubius()
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this._scienceTree = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 4;
+			this.myVictoryManager.RubiusVictory();
+		}
+	}
+
+	// Token: 0x060000E1 RID: 225 RVA: 0x00016397 File Offset: 0x00014597
+	public void AIVictoriaRubius()
+	{
+		if (!this.GameWon)
+		{
+			this.GameWon = true;
+			this.playerWinner = this.TurnOrder;
+			this.victoryType = 4;
+			this.myVictoryManager.RubiusVictory();
+		}
+	}
+
+	// Token: 0x060000E2 RID: 226 RVA: 0x000163C8 File Offset: 0x000145C8
+	public void Derrota()
+	{
+		this.ChangeUnitMenu(null);
+		if (this.GameWon)
+		{
+			if (this.playerWinner == this.TurnOrder)
+			{
+				this.playerWinner = -1;
+				this.victoryType = -1;
+				return;
+			}
+			if (!this.seenVictory[this.TurnOrder])
+			{
+				this._scienceTree = true;
+				this.myVictoryManager.Derr();
+				this.seenVictory[this.TurnOrder] = true;
+			}
+		}
+	}
+
+	// Token: 0x060000E3 RID: 227 RVA: 0x00016430 File Offset: 0x00014630
+	public void UntoggleTribes(bool t)
+	{
+		this.TribuMenu = false;
+		this._scienceTree = false;
+		this.ActivateAllCollidersUnids();
+		if (t)
+		{
+			this.ScienceTree();
+		}
+	}
+
+	// Token: 0x060000E4 RID: 228 RVA: 0x0001644F File Offset: 0x0001464F
+	public void TribuMessage(int i)
+	{
+		this.mUITribMan.gameObject.SetActive(true);
+		this.TribuMenu = true;
+		this._scienceTree = true;
+		this.mUITribMan.sendMessage(i);
+	}
+
+	// Token: 0x060000E5 RID: 229 RVA: 0x0001647C File Offset: 0x0001467C
+	public void MaravConstructed(Maravilla m, Ciudad c)
+	{
+		string text = c.Nombre;
+		if (this.onlyOneRealPlayer)
+		{
+			int num = 0;
+			while (num < this.jugadores.Length && !this.jugadores[num].RealPlayer)
+			{
+				num++;
+			}
+			if (num < this.jugadores.Length && !this.jugadores[num].Visión[c.posX, c.posY])
+			{
+				text = "???";
+			}
+		}
+		GlobalMessage.Instance.Message("La maravilla " + m.Nombre + " ha sido construida en la ciudad " + text);
+		this.MaravsDone[this.maxMarav] = m;
+		this.maxMarav++;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null)
+			{
+				this.jugadores[i].MaravConstructed(m);
+			}
+		}
+	}
+
+	// Token: 0x060000E6 RID: 230 RVA: 0x00016558 File Offset: 0x00014758
+	public void DeletePlayer(Jugador jug)
+	{
+		int num = 0;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null)
+			{
+				num++;
+			}
+		}
+		if (num <= 1)
+		{
+			this.myVictoryManager.GoBackToMenu();
+		}
+		else
+		{
+			int num2 = 0;
+			if (jug == this.jugadores[this.TurnOrder])
+			{
+				jug.FinTecnologias = true;
+				jug.SkipTurn();
+			}
+			for (int j = 0; j < this.jugadores.Length; j++)
+			{
+				if (jug == this.jugadores[j])
+				{
+					num2 = j;
+				}
+				else if (this.jugadores[j] != null && this.jugadores[j].RealPlayer)
+				{
+					this.jugadores[j].AddDeadLeader(this.myRelationshipManager.GetAngry(jug.lider), jug.Nombre);
+				}
+			}
+			MainAIManager.Instance.EliminatePlayer(num2);
+			Object.Destroy(this.jugadores[num2].gameObject);
+			this.jugadores[num2] = null;
+			if (this.Jug() == null)
+			{
+				this.NextTurn(false, 0, false);
+			}
+			else
+			{
+				this.Jug().CheckIfHasDeadLeaders();
+			}
+			this.myRelationshipManager.KillPlayer(num2);
+			this.CheckIfMilitarVictory();
+		}
+		this.CheckIfOnlyOneRealPlayer();
+	}
+
+	// Token: 0x060000E7 RID: 231 RVA: 0x00016692 File Offset: 0x00014892
+	public void Attack(Unidad Att, Unidad Def, bool lucky)
+	{
+		this.myRelationshipManager.Attack(Att, Def, lucky);
+	}
+
+	// Token: 0x060000E8 RID: 232 RVA: 0x000166A2 File Offset: 0x000148A2
+	public void AttackCiudad(Unidad Att, Ciudad Def, bool lucky)
+	{
+		this.myRelationshipManager.AttackCiudad(Att, Def, lucky);
+	}
+
+	// Token: 0x060000E9 RID: 233 RVA: 0x000166B4 File Offset: 0x000148B4
+	public Unidad GetUnidad(int posX, int posY)
+	{
+		Unidad unidad = null;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null && this.jugadores[i].TengoUnidadAhi(posX, posY))
+			{
+				unidad = this.jugadores[i].UnidadDeCoords(posX, posY);
+			}
+		}
+		return unidad;
+	}
+
+	// Token: 0x060000EA RID: 234 RVA: 0x00016708 File Offset: 0x00014908
+	public Ciudad GetCiudad(int posX, int posY)
+	{
+		Ciudad ciudad = null;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null && this.jugadores[i].TengoCiudadAhi(posX, posY) != null)
+			{
+				ciudad = this.jugadores[i].TengoCiudadAhi(posX, posY);
+			}
+		}
+		return ciudad;
+	}
+
+	// Token: 0x060000EB RID: 235 RVA: 0x00016762 File Offset: 0x00014962
+	public RelationshipManager.RelationStatus ReturnRelation(Jugador jug1, Jugador jug2)
+	{
+		return this.myRelationshipManager.ReturnRelation(jug1, jug2);
+	}
+
+	// Token: 0x060000EC RID: 236 RVA: 0x00016771 File Offset: 0x00014971
+	public void CityThingsThatCanBuild(Ciudad c)
+	{
+		this.myCityThingBuilt.Build(c);
+		this.myCityThingsToBuild.Build(c, this.Jug());
+	}
+
+	// Token: 0x060000ED RID: 237 RVA: 0x00016791 File Offset: 0x00014991
+	public void DestroyCityThingsThatCanBuild()
+	{
+		if (this.Jug().RealPlayer)
+		{
+			this.myCityThingsToBuild.ToggleAllTrue(this.TurnOrder);
+		}
+		this.myCityThingsToBuild.Destruction();
+		this.myCityThingBuilt.Destruction();
+	}
+
+	// Token: 0x060000EE RID: 238 RVA: 0x000167C7 File Offset: 0x000149C7
+	public void SelectConstruction(Building myBuilding, UnitScriptable myUnit, Maravilla myMarav)
+	{
+		this.UIcity.ConstructThing(myBuilding, myUnit, myMarav);
+	}
+
+	// Token: 0x060000EF RID: 239 RVA: 0x000167D7 File Offset: 0x000149D7
+	public void CreateUnit(GameObject unit, int posX, int posY, Jugador jug, int rel)
+	{
+		this.unitGenerator.CreateUnit(unit, posX, posY, jug, rel);
+	}
+
+	// Token: 0x060000F0 RID: 240 RVA: 0x000167EB File Offset: 0x000149EB
+	public void ChangeUnitMenu(Unidad a)
+	{
+		if (a == null || a.myPlayer.RealPlayer)
+		{
+			this.myUnitMenu.ChangeUnit(a);
+		}
+	}
+
+	// Token: 0x060000F1 RID: 241 RVA: 0x0001680F File Offset: 0x00014A0F
+	public void ChangeUIPlayer(Jugador player)
+	{
+		if (player.RealPlayer)
+		{
+			this.UIplayer.ManageValues(player);
+			this.mGoldenAgeManager.ManageGoldenAgeBar(player);
+		}
+	}
+
+	// Token: 0x060000F2 RID: 242 RVA: 0x00016834 File Offset: 0x00014A34
+	public bool SelectCiudad(Ciudad ciudad, int posX, int posY)
+	{
+		if (!this.Jug().RealPlayer)
+		{
+			return false;
+		}
+		if (!this.canSelect)
+		{
+			this.DeSelectCiudad();
+			return this.SelectCiudad(ciudad, posX, posY);
+		}
+		if (!this._scienceTree)
+		{
+			this.CitySelected = true;
+			this.CamGoTo(posX, posY);
+			this.UIcity.ShowCityUI(ciudad);
+			return true;
+		}
+		return false;
+	}
+
+	// Token: 0x060000F3 RID: 243 RVA: 0x0001688E File Offset: 0x00014A8E
+	public void DeSelectCiudad()
+	{
+		this.CitySelected = false;
+		this.UIcity.HideCityUI();
+	}
+
+	// Token: 0x060000F4 RID: 244 RVA: 0x000168A2 File Offset: 0x00014AA2
+	public void ChangeAutoSkip()
+	{
+		this.AutoSkip = !this.AutoSkip;
+	}
+
+	// Token: 0x060000F5 RID: 245 RVA: 0x000168B3 File Offset: 0x00014AB3
+	public void ChangeAutoSkipToggle()
+	{
+		this.UIplayer.ChangeAutoSkipToggle();
+	}
+
+	// Token: 0x060000F6 RID: 246 RVA: 0x000168C0 File Offset: 0x00014AC0
+	public void SkipButton()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer)
+		{
+			if (this.FreeTechs > 0 && this.Jug().lider != GameSettings.Lideres.NightKing)
+			{
+				if (!this.Jug().RealPlayer)
+				{
+					MainAIManager.Instance.checkScience();
+					return;
+				}
+				if (!this._scienceTree)
+				{
+					this.ScienceTree();
+					return;
+				}
+			}
+			else if (this.FreeCulture > 0 && this.Jug().lider != GameSettings.Lideres.NightKing)
+			{
+				if (this.Jug().RealPlayer)
+				{
+					if (!this._scienceTree)
+					{
+						this.CultureTree();
+					}
+					this.cultureManager.ManageCultureBar();
+					return;
+				}
+				MainAIManager.Instance.checkCulture();
+				return;
+			}
+			else if (!this._scienceTree && !this.Jug().CheckCities())
+			{
+				if (this.Jug().researching == null && !this.Jug().FinTecnologias && this.Jug().RealPlayer && this.Jug().lider != GameSettings.Lideres.NightKing)
+				{
+					this.ScienceTree();
+				}
+				else if (this.myRelationshipManager.Notif[this.TurnOrder] <= 0)
+				{
+					this.Jug().SkipTurn();
+				}
+				else if (this.Jug().RealPlayer)
+				{
+					this.RelationshipDown();
+				}
+				else
+				{
+					MainAIManager.Instance.AIDiplomacyCheck(false);
+					this.Jug().SkipTurn();
+				}
+				ReligionManager.Instance.HideDataBox();
+			}
+		}
+	}
+
+	// Token: 0x060000F7 RID: 247 RVA: 0x00016A35 File Offset: 0x00014C35
+	private void HideUI()
+	{
+		this.UIcity.gameObject.SetActive(false);
+	}
+
+	// Token: 0x060000F8 RID: 248 RVA: 0x00016A48 File Offset: 0x00014C48
+	private void ShowUI()
+	{
+		this.UIcity.gameObject.SetActive(true);
+	}
+
+	// Token: 0x060000F9 RID: 249 RVA: 0x00016A5B File Offset: 0x00014C5B
+	public void FreeTech(int num = 1)
+	{
+		if (!this.Jug().FinTecnologias)
+		{
+			this.FreeTechs += num;
+			if (this.Jug().RealPlayer)
+			{
+				base.StartCoroutine(this.FreeThing(true));
+			}
+		}
+	}
+
+	// Token: 0x060000FA RID: 250 RVA: 0x00016A93 File Offset: 0x00014C93
+	public void FreeCult(int num = 1)
+	{
+		this.FreeCulture += num;
+		if (this.Jug().RealPlayer)
+		{
+			base.StartCoroutine(this.FreeThing(false));
+		}
+	}
+
+	// Token: 0x060000FB RID: 251 RVA: 0x00016ABE File Offset: 0x00014CBE
+	private IEnumerator FreeThing(bool a)
+	{
+		yield return new WaitForSeconds(0.5f);
+		if (a)
+		{
+			if (this.Jug().RealPlayer)
+			{
+				if (!this._scienceTree)
+				{
+					this.ScienceTree();
+				}
+			}
+			else
+			{
+				MainAIManager.Instance.checkScience();
+			}
+		}
+		else if (this.Jug().RealPlayer)
+		{
+			if (!this._scienceTree)
+			{
+				this.CultureTree();
+			}
+			this.cultureManager.ManageCultureBar();
+		}
+		else
+		{
+			MainAIManager.Instance.checkCulture();
+		}
+		yield break;
+	}
+
+	// Token: 0x060000FC RID: 252 RVA: 0x00016AD4 File Offset: 0x00014CD4
+	private void DeactivateAllCollidersUnids()
+	{
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null)
+			{
+				this.jugadores[i].DeactivateAllUnitColliders();
+			}
+		}
+	}
+
+	// Token: 0x060000FD RID: 253 RVA: 0x00016B14 File Offset: 0x00014D14
+	private void ActivateAllCollidersUnids()
+	{
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null)
+			{
+				this.jugadores[i].ActivateAllUnitColliders();
+			}
+		}
+	}
+
+	// Token: 0x060000FE RID: 254 RVA: 0x00016B54 File Offset: 0x00014D54
+	public void ScienceTree()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer && !this._scienceTree && !this._scienceTree)
+		{
+			TutorialManager.Instance.ShowPopup(8);
+			if (this.FreeTechs > 0)
+			{
+				TutorialManager.Instance.ShowPopup(9);
+			}
+			this.CienciaOCult = false;
+			this._scienceTree = true;
+			this._goldenAgeTree = false;
+			this._religionTree = false;
+			this._relationshipMan = false;
+			if (this.CitySelected)
+			{
+				this.CitySelected = false;
+				this.UIcity.HideCityUI();
+			}
+			this.scienceManager.GoDown();
+			this.scienceManager.ManageScienceBar(this.Jug());
+			this.ManagerFreeTechUI();
+			this.DeactivateAllCollidersUnids();
+			this.HideUI();
+		}
+	}
+
+	// Token: 0x060000FF RID: 255 RVA: 0x00016C28 File Offset: 0x00014E28
+	public void ManagerFreeTechUI()
+	{
+		this.scienceManager.ManageFreeTech();
+	}
+
+	// Token: 0x06000100 RID: 256 RVA: 0x00016C38 File Offset: 0x00014E38
+	public void EscapeKey()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer && !this.TribuMenu && this.FreeTechs <= 0 && this.FreeCulture <= 0)
+		{
+			if (!this.EscapeMenu)
+			{
+				if (this._scienceTree)
+				{
+					if (this.CienciaOCult)
+					{
+						this.HideCultureTree();
+						return;
+					}
+					if (this._goldenAgeTree)
+					{
+						this.HideGoldenAgeTree();
+						return;
+					}
+					if (this._religionTree)
+					{
+						this.HideReligionTree();
+						return;
+					}
+					if (this._relationshipMan)
+					{
+						this.HideRelationshipMan();
+						return;
+					}
+					this.HideScienceTree();
+					return;
+				}
+				else
+				{
+					if (this.CitySelected)
+					{
+						this.DeSelectCiudad();
+						return;
+					}
+					this._scienceTree = true;
+					this.UIplayer.EscMenue();
+					this.EscapeMenu = true;
+					return;
+				}
+			}
+			else
+			{
+				if (this._scienceTree)
+				{
+					this._scienceTree = false;
+				}
+				this.UIplayer.EscMenue();
+				this.EscapeMenu = false;
+				this.myEscGuardYCarg.Hide();
+			}
+		}
+	}
+
+	// Token: 0x06000101 RID: 257 RVA: 0x00016D38 File Offset: 0x00014F38
+	public void CultureTree()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer && !this._scienceTree)
+		{
+			TutorialManager.Instance.ShowPopup(10);
+			if (this.FreeCulture > 0)
+			{
+				TutorialManager.Instance.ShowPopup(11);
+			}
+			this.CienciaOCult = true;
+			this._scienceTree = true;
+			this._goldenAgeTree = false;
+			this._religionTree = false;
+			this._relationshipMan = false;
+			if (this.CitySelected)
+			{
+				this.CitySelected = false;
+				this.UIcity.HideCityUI();
+			}
+			this.cultureManager.GoDown();
+			this.cultureManager.ManageCultureBar();
+			this.cultureManager.ManageFreeCulture();
+			this.HideUI();
+			this.DeactivateAllCollidersUnids();
+		}
+	}
+
+	// Token: 0x06000102 RID: 258 RVA: 0x00016E04 File Offset: 0x00015004
+	public void GoldenAgeTree()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer && !this._scienceTree)
+		{
+			TutorialManager.Instance.ShowPopup(20);
+			this.CienciaOCult = false;
+			this._scienceTree = true;
+			this._goldenAgeTree = true;
+			this._religionTree = false;
+			this._relationshipMan = false;
+			if (this.CitySelected)
+			{
+				this.CitySelected = false;
+				this.UIcity.HideCityUI();
+			}
+			this.mGoldenAgeManager.GoDown();
+			this.HideUI();
+			this.DeactivateAllCollidersUnids();
+		}
+	}
+
+	// Token: 0x06000103 RID: 259 RVA: 0x00016E98 File Offset: 0x00015098
+	public void ReligionTree()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer && !this._scienceTree)
+		{
+			TutorialManager.Instance.ShowPopup(12);
+			this.CienciaOCult = false;
+			this._scienceTree = true;
+			this._goldenAgeTree = false;
+			this._religionTree = true;
+			this._relationshipMan = false;
+			if (this.CitySelected)
+			{
+				this.CitySelected = false;
+				this.UIcity.HideCityUI();
+			}
+			ReligionManager.Instance.GoDown();
+			this.HideUI();
+			this.DeactivateAllCollidersUnids();
+		}
+	}
+
+	// Token: 0x06000104 RID: 260 RVA: 0x00016F2C File Offset: 0x0001512C
+	public void RelationshipDown()
+	{
+		if (this.playing && !this.AIStop && this.Jug().RealPlayer)
+		{
+			TutorialManager.Instance.ShowPopup(14);
+			this.CienciaOCult = false;
+			this._scienceTree = true;
+			this._goldenAgeTree = false;
+			this._religionTree = false;
+			this._relationshipMan = true;
+			if (this.CitySelected)
+			{
+				this.CitySelected = false;
+				this.UIcity.HideCityUI();
+			}
+			this.myRelationshipManager.GoDown();
+			this.HideUI();
+			this.DeactivateAllCollidersUnids();
+		}
+	}
+
+	// Token: 0x06000105 RID: 261 RVA: 0x00016FB8 File Offset: 0x000151B8
+	public void HideScienceTree()
+	{
+		if (this._scienceTree && (this.FreeTechs <= 0 || this.Jug().FinTecnologias))
+		{
+			this._scienceTree = false;
+			this.scienceManager.GoUp();
+			this.scienceManager.ManageScienceBar(this.Jug());
+			this.ShowUI();
+			this.ActivateAllCollidersUnids();
+		}
+		if (this.FreeCulture > 0)
+		{
+			base.StartCoroutine(this.FreeThing(false));
+		}
+	}
+
+	// Token: 0x06000106 RID: 262 RVA: 0x0001702C File Offset: 0x0001522C
+	public void HideCultureTree()
+	{
+		if (this.cultureManager.comprando)
+		{
+			this.cultureManager.HiceCompras();
+			return;
+		}
+		if (this.FreeCulture <= 0)
+		{
+			this._scienceTree = false;
+			this.cultureManager.GoUp();
+			this.cultureManager.ManageCultureBar();
+			this.cultureManager.HideUpgrades();
+			this.ShowUI();
+			this.ChangeUIPlayer(this.Jug());
+			this.ActivateAllCollidersUnids();
+		}
+		if (this.FreeTechs > 0)
+		{
+			base.StartCoroutine(this.FreeThing(true));
+		}
+	}
+
+	// Token: 0x06000107 RID: 263 RVA: 0x000170B2 File Offset: 0x000152B2
+	public void NewGoldenAgeMessage(int i)
+	{
+		this.mUITribMan.gameObject.SetActive(true);
+		this.TribuMenu = true;
+		this._scienceTree = true;
+		this.mUITribMan.sendGoldenAgeMessage(i);
+		this.DeactivateAllCollidersUnids();
+	}
+
+	// Token: 0x06000108 RID: 264 RVA: 0x000170E5 File Offset: 0x000152E5
+	public void NewCultureMessage(int n)
+	{
+		if (this.Jug().RealPlayer)
+		{
+			this.mUITribMan.gameObject.SetActive(true);
+			this.TribuMenu = true;
+			this._scienceTree = true;
+			this.mUITribMan.sendCulturePosibleMessage(n);
+			this.DeactivateAllCollidersUnids();
+		}
+	}
+
+	// Token: 0x06000109 RID: 265 RVA: 0x00017125 File Offset: 0x00015325
+	public void ReligionJudmentDay()
+	{
+		this.mUITribMan.gameObject.SetActive(true);
+		this.TribuMenu = true;
+		this._scienceTree = true;
+		this.mUITribMan.sendReligionEndingMessage();
+		this.DeactivateAllCollidersUnids();
+	}
+
+	// Token: 0x0600010A RID: 266 RVA: 0x00017157 File Offset: 0x00015357
+	public void DeadLeaderMessage(Sprite s, string n)
+	{
+		this.mUITribMan.gameObject.SetActive(true);
+		this.TribuMenu = true;
+		this._scienceTree = true;
+		this.mUITribMan.sendDeadLeaderMessage(s, n);
+		this.DeactivateAllCollidersUnids();
+	}
+
+	// Token: 0x0600010B RID: 267 RVA: 0x0001718C File Offset: 0x0001538C
+	public void HideGoldenAgeTree()
+	{
+		this._scienceTree = false;
+		this._goldenAgeTree = false;
+		this.mGoldenAgeManager.GoUp();
+		this.mGoldenAgeManager.ManageGoldenAgeBar(this.Jug());
+		this.ShowUI();
+		this.ActivateAllCollidersUnids();
+		if (this.FreeTechs > 0)
+		{
+			base.StartCoroutine(this.FreeThing(true));
+		}
+		if (this.FreeCulture > 0)
+		{
+			base.StartCoroutine(this.FreeThing(false));
+		}
+	}
+
+	// Token: 0x0600010C RID: 268 RVA: 0x00017200 File Offset: 0x00015400
+	public void HideReligionTree()
+	{
+		this._scienceTree = false;
+		this._religionTree = false;
+		ReligionManager.Instance.GoUp();
+		this.ShowUI();
+		this.ActivateAllCollidersUnids();
+		if (this.FreeTechs > 0)
+		{
+			base.StartCoroutine(this.FreeThing(true));
+		}
+		if (this.FreeCulture > 0)
+		{
+			base.StartCoroutine(this.FreeThing(false));
+		}
+	}
+
+	// Token: 0x0600010D RID: 269 RVA: 0x00017260 File Offset: 0x00015460
+	public void HideRelationshipMan()
+	{
+		if (this.myRelationshipManager.canClose())
+		{
+			this._scienceTree = false;
+			this._relationshipMan = false;
+			this.myRelationshipManager.GoUp();
+			this.ShowUI();
+			this.ActivateAllCollidersUnids();
+			if (this.FreeTechs > 0)
+			{
+				base.StartCoroutine(this.FreeThing(true));
+			}
+			if (this.FreeCulture > 0)
+			{
+				base.StartCoroutine(this.FreeThing(false));
+			}
+		}
+	}
+
+	// Token: 0x0600010E RID: 270 RVA: 0x000172CD File Offset: 0x000154CD
+	public void CheckMyInfluencias()
+	{
+		this.myRelationshipManager.CheckInfluencias(this.TurnOrder);
+	}
+
+	// Token: 0x0600010F RID: 271 RVA: 0x000172E0 File Offset: 0x000154E0
+	public void GiveNacionesUnidas(Maravilla m)
+	{
+		int num = 0;
+		bool flag = false;
+		while (num < this.Jug().MyMaravillas.Length && !flag)
+		{
+			if (this.Jug().MyMaravillas[num] == null)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		this.Jug().MyMaravillas[num] = m;
+	}
+
+	// Token: 0x06000110 RID: 272 RVA: 0x00017331 File Offset: 0x00015531
+	public void NegociacionesIsThereAvisos()
+	{
+		this.myRelationshipManager.IsThereAvisos(this.TurnOrder);
+	}
+
+	// Token: 0x06000111 RID: 273 RVA: 0x00017344 File Offset: 0x00015544
+	public void Move(int dir)
+	{
+		if (!this.AIStop && this.Jug().RealPlayer)
+		{
+			if (this.playing && !this.CitySelected)
+			{
+				if (!this._scienceTree)
+				{
+					this.Jug().MoveUnit(dir);
+					return;
+				}
+			}
+			else if (this.CitySelected)
+			{
+				if (!this.UIcity.AreShowingBuildings())
+				{
+					this.myCityThingsToBuild.Move(dir);
+					return;
+				}
+				this.myCityThingBuilt.Move(dir);
+			}
+		}
+	}
+
+	// Token: 0x06000112 RID: 274 RVA: 0x000173B9 File Offset: 0x000155B9
+	public void Build()
+	{
+		if (this.playing && !this.CitySelected && !this._scienceTree && this.Jug().RealPlayer)
+		{
+			this.Jug().Build();
+		}
+	}
+
+	// Token: 0x06000113 RID: 275 RVA: 0x000173EB File Offset: 0x000155EB
+	public void BuildThing(int i)
+	{
+		if (this.playing && !this.CitySelected && !this._scienceTree && this.Jug().RealPlayer)
+		{
+			this.Jug().BuildThing(i);
+		}
+	}
+
+	// Token: 0x06000114 RID: 276 RVA: 0x0001741E File Offset: 0x0001561E
+	public bool Convert()
+	{
+		return this.playing && !this.CitySelected && !this._scienceTree && this.Jug().RealPlayer && this.Jug().Convert();
+	}
+
+	// Token: 0x06000115 RID: 277 RVA: 0x00017452 File Offset: 0x00015652
+	public bool Inquisition()
+	{
+		return this.playing && !this.CitySelected && !this._scienceTree && this.Jug().RealPlayer && this.Jug().Inquisition();
+	}
+
+	// Token: 0x06000116 RID: 278 RVA: 0x00017486 File Offset: 0x00015686
+	public void NewCity(Jugador player, int x, int y, string name, bool capital, int rel)
+	{
+		this.cityGenerator.NewCity(player, x, y, name, capital, rel);
+	}
+
+	// Token: 0x06000117 RID: 279 RVA: 0x0001749C File Offset: 0x0001569C
+	public void SetMaxs(int mX, int mY)
+	{
+		this.cam.SetMaxs(mX, mY);
+		this.WorldGenerated = true;
+	}
+
+	// Token: 0x06000118 RID: 280 RVA: 0x000174B2 File Offset: 0x000156B2
+	public void CheckPactsJug()
+	{
+		this.myRelationshipManager.CheckPactsJug();
+	}
+
+	// Token: 0x06000119 RID: 281 RVA: 0x000174BF File Offset: 0x000156BF
+	public void ChackPactsCiud(Ciudad c)
+	{
+		this.myRelationshipManager.CheckPactsCiud(c);
+	}
+
+	// Token: 0x0600011A RID: 282 RVA: 0x000174D0 File Offset: 0x000156D0
+	public void MoveCam(int dirx, int diry, float zoom)
+	{
+		if (this.playing && !this.AIStop)
+		{
+			if (this._scienceTree)
+			{
+				if (this._relationshipMan)
+				{
+					this.myRelationshipManager.Wheel(zoom);
+					return;
+				}
+				this.scienceManager.MoveSienceTree(dirx, zoom);
+				return;
+			}
+			else if (this.CitySelected)
+			{
+				if (dirx != 0 || diry != 0)
+				{
+					this.DeSelectCiudad();
+					this.cam.dirX = dirx;
+					this.cam.dirY = diry;
+					this.cam.zoom = zoom;
+					return;
+				}
+				if (!this.UIcity.getMouseInBuildThing())
+				{
+					this.cam.zoom = zoom;
+					return;
+				}
+				int num = (int)zoom / 10;
+				if (!this.UIcity.AreShowingBuildings())
+				{
+					if (num == -1)
+					{
+						this.myCityThingsToBuild.Move(2);
+					}
+					if (num == 1)
+					{
+						this.myCityThingsToBuild.Move(4);
+						return;
+					}
+				}
+				else
+				{
+					if (num == -1)
+					{
+						this.myCityThingBuilt.Move(2);
+					}
+					if (num == 1)
+					{
+						this.myCityThingBuilt.Move(4);
+						return;
+					}
+				}
+			}
+			else
+			{
+				this.cam.dirX = dirx;
+				this.cam.dirY = diry;
+				this.cam.zoom = zoom;
+			}
+		}
+	}
+
+	// Token: 0x0600011B RID: 283 RVA: 0x000175F0 File Offset: 0x000157F0
+	public void CamGoTo(int posX, int posY)
+	{
+		this.cam.GoTo(posX, posY);
+	}
+
+	// Token: 0x0600011C RID: 284 RVA: 0x00017600 File Offset: 0x00015800
+	public void NextTurn(bool aux = false, int i = 0, bool cargado = false)
+	{
+		if (this.MonopolyChecker && !this.onlyOneRealPlayer)
+		{
+			this.HideMonopolyBuy();
+		}
+		if (!this._scienceTree && !this.AIStop)
+		{
+			TutorialManager.Instance.FinalOkPopUp();
+			if (this.TurnOrder == this.jugadores.Length - 1 || this.TurnOrder == -1)
+			{
+				this.TurnOrder = 0;
+			}
+			else
+			{
+				this.TurnOrder++;
+			}
+			if (this.Jug() == null)
+			{
+				if (i < this.jugadores.Length)
+				{
+					this.NextTurn(aux, i + 1, false);
+					return;
+				}
+			}
+			else
+			{
+				if (this.Jug().Unidades[0] != null && cargado && this.Jug().RealPlayer)
+				{
+					this.CamGoTo(this.Jug().Unidades[0].posX, this.Jug().Unidades[0].posY);
+				}
+				else if (this.Jug().Ciudades[0] != null && cargado && this.Jug().RealPlayer)
+				{
+					this.CamGoTo(this.Jug().Ciudades[0].posX, this.Jug().Ciudades[0].posY);
+				}
+				this.FOW.ChangeFOW(this.TurnOrder);
+				if (this.playerWinner != -1)
+				{
+					this.Derrota();
+				}
+				this.Jug().StartTurn(aux, cargado);
+				this.myRelationshipManager.resetProposals();
+				this.scienceManager.ManageScienceBar(this.Jug());
+				this.cultureManager.ManageCultureBar();
+				this.mGoldenAgeManager.ManageGoldenAgeBar(this.Jug());
+				ReligionManager.Instance.ManageReligionBar();
+				ReligionManager.Instance.CheckIfSendVictoryMessage();
+				if (this.guardAutom)
+				{
+					if (this.TurnOrder == this.guardSegStart)
+					{
+						this.guardSegCont++;
+					}
+					if (this.guardSegCont >= 10)
+					{
+						this.guardSegCont = 0;
+						base.GetComponent<InformationToFile>().GuardadoSeguridad();
+						Tablero.Instance.GuardadoSeg();
+					}
+				}
+			}
+		}
+	}
+
+	// Token: 0x0600011D RID: 285 RVA: 0x000177FE File Offset: 0x000159FE
+	public float InfluenciaPorRelaciones()
+	{
+		return this.myRelationshipManager.InfluenciaPorTurno(this.TurnOrder);
+	}
+
+	// Token: 0x0600011E RID: 286 RVA: 0x00017811 File Offset: 0x00015A11
+	public int GetFuerzaPact(Jugador j)
+	{
+		return this.myRelationshipManager.GetFuerzaPact(j);
+	}
+
+	// Token: 0x0600011F RID: 287 RVA: 0x0001781F File Offset: 0x00015A1F
+	public int GetBuildPact(Jugador j)
+	{
+		return this.myRelationshipManager.GetBuildPact(j);
+	}
+
+	// Token: 0x06000120 RID: 288 RVA: 0x0001782D File Offset: 0x00015A2D
+	public void CheckFogOfWar(Jugador player, bool loading)
+	{
+		this.FOW.Check(this.TurnOrder, player.Visión, loading);
+	}
+
+	// Token: 0x06000121 RID: 289 RVA: 0x00017847 File Offset: 0x00015A47
+	public void CheckIfMetNewPeopleNiebla(int jug, int x, int y)
+	{
+		this.myRelationshipManager.CheckIfMetNewPeopleNiebla(jug, x, y);
+	}
+
+	// Token: 0x06000122 RID: 290 RVA: 0x00017857 File Offset: 0x00015A57
+	public void CheckIfMetNewPeopleMov(Jugador jug, int x, int y)
+	{
+		this.myRelationshipManager.CheckIfMetNewPeopleMov(jug, x, y);
+	}
+
+	// Token: 0x06000123 RID: 291 RVA: 0x00017867 File Offset: 0x00015A67
+	public void Connect2Players(int x, int y)
+	{
+		if (!this.myRelationshipManager.hasDiscovered[x, y])
+		{
+			this.myRelationshipManager.Connect2Players(x, y);
+		}
+	}
+
+	// Token: 0x06000124 RID: 292 RVA: 0x0001788A File Offset: 0x00015A8A
+	public bool ArePlayersConected(int x, int y)
+	{
+		return this.myRelationshipManager.hasDiscovered[x, y];
+	}
+
+	// Token: 0x06000125 RID: 293 RVA: 0x0001789E File Offset: 0x00015A9E
+	public void EscSaveGameMenu(bool guardando)
+	{
+		this.myEscGuardYCarg.gameObject.SetActive(true);
+	}
+
+	// Token: 0x06000126 RID: 294 RVA: 0x000178B1 File Offset: 0x00015AB1
+	public void SaveGame(int i, string a)
+	{
+		base.GetComponent<InformationToFile>().saveGame(i, a);
+		Tablero.Instance.Save(i, a);
+	}
+
+	// Token: 0x06000127 RID: 295 RVA: 0x000178CC File Offset: 0x00015ACC
+	public void LoadGuardadoSeguridad()
+	{
+		this.myEscGuardYCarg.LoadGameGuardadoSeguridad();
+	}
+
+	// Token: 0x06000128 RID: 296 RVA: 0x000178D9 File Offset: 0x00015AD9
+	public Transform GridTransform()
+	{
+		return this.UIplayer.mGrid();
+	}
+
+	// Token: 0x06000129 RID: 297 RVA: 0x000178E6 File Offset: 0x00015AE6
+	public void SwitchCiuds()
+	{
+		this.UIcity.SwitchCiuds();
+	}
+
+	// Token: 0x0600012A RID: 298 RVA: 0x000178F3 File Offset: 0x00015AF3
+	public void ReCalculateCityVariables()
+	{
+		this.UIcity.ManageValues(false);
+	}
+
+	// Token: 0x0600012B RID: 299 RVA: 0x00017901 File Offset: 0x00015B01
+	public void FormalWarChecker()
+	{
+		this.myRelationshipManager.FormalWarChecker(this.TurnOrder);
+	}
+
+	// Token: 0x0600012C RID: 300 RVA: 0x00017914 File Offset: 0x00015B14
+	public int BonusSaladino()
+	{
+		int num = 0;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (i != this.TurnOrder && this.jugadores[i] != null)
+			{
+				num += this.jugadores[i].BonusParaSaladino(this.TurnOrder);
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x0600012D RID: 301 RVA: 0x00017968 File Offset: 0x00015B68
+	public int GetFrenchPenalization(int x, int y, Jugador jug)
+	{
+		int num = 0;
+		if (this.FranceInMatch)
+		{
+			for (int i = 0; i < this.jugadores.Length; i++)
+			{
+				if (this.jugadores[i] != null && this.jugadores[i] != jug && this.jugadores[i].lider == GameSettings.Lideres.Napoleon)
+				{
+					int num2 = 0;
+					bool flag = false;
+					while (!flag && num2 < this.jugadores[i].maxCiudad)
+					{
+						int num3 = x - this.jugadores[i].Ciudades[num2].posX;
+						if (num3 < 0)
+						{
+							num3 *= -1;
+						}
+						int num4 = y - this.jugadores[i].Ciudades[num2].posY;
+						if (num4 < 0)
+						{
+							num4 *= -1;
+						}
+						if (num3 + num4 <= 10)
+						{
+							num += 10;
+							flag = true;
+						}
+						num2++;
+					}
+				}
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x0600012E RID: 302 RVA: 0x00017A48 File Offset: 0x00015C48
+	public float GilgameshFriendBonus(Jugador jug)
+	{
+		float num = 0f;
+		if (this.GilgameshInMatch)
+		{
+			for (int i = 0; i < this.jugadores.Length; i++)
+			{
+				if (this.jugadores[i] != null && this.jugadores[i] != jug && this.jugadores[i].lider == GameSettings.Lideres.Gilgamesh && this.myRelationshipManager.ReturnRelation(jug, this.jugadores[i]) == RelationshipManager.RelationStatus.Aliados)
+				{
+					num += 0.1f;
+				}
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x0600012F RID: 303 RVA: 0x00017AC8 File Offset: 0x00015CC8
+	public float GilgameshBonus(Jugador jug)
+	{
+		float num = 0f;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null && this.jugadores[i] != jug && this.myRelationshipManager.ReturnRelation(jug, this.jugadores[i]) == RelationshipManager.RelationStatus.Aliados)
+			{
+				num += 0.2f;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000130 RID: 304 RVA: 0x00017B2E File Offset: 0x00015D2E
+	public void SuperSaiyan()
+	{
+		if (this.playing && !this.AIStop)
+		{
+			this.Jug().SuperSaiyan();
+			this.UIplayer.ManageValues(this.Jug());
+		}
+	}
+
+	// Token: 0x06000131 RID: 305 RVA: 0x00017B5C File Offset: 0x00015D5C
+	public void ShowAllCiudadsAreas()
+	{
+		if (this.ToggleCiudAreas)
+		{
+			for (int i = 0; i < this.jugadores.Length; i++)
+			{
+				if (this.jugadores[i] != null)
+				{
+					this.jugadores[i].ShowAllCiudadsAreas();
+				}
+			}
+			return;
+		}
+		for (int j = 0; j < this.jugadores.Length; j++)
+		{
+			if (this.jugadores[j] != null)
+			{
+				this.jugadores[j].HideAllCiudadsAreas();
+			}
+		}
+	}
+
+	// Token: 0x06000132 RID: 306 RVA: 0x00017BD2 File Offset: 0x00015DD2
+	public void ToggleAllCiudadsAreas()
+	{
+		this.ToggleCiudAreas = !this.ToggleCiudAreas;
+		this.ShowAllCiudadsAreas();
+	}
+
+	// Token: 0x06000133 RID: 307 RVA: 0x00017BE9 File Offset: 0x00015DE9
+	public void CheckEnemyPreBattle(Unidad u)
+	{
+		if (this.myRelationshipManager.ReturnRelation(u.myPlayer, this.Jug()) == RelationshipManager.RelationStatus.Guerra)
+		{
+			this.UIplayer.ShowBattlePrediction(u);
+		}
+	}
+
+	// Token: 0x06000134 RID: 308 RVA: 0x00017C11 File Offset: 0x00015E11
+	public void HideEnemyPreBattle()
+	{
+		this.UIplayer.HideBattlePrediction();
+	}
+
+	// Token: 0x06000135 RID: 309 RVA: 0x00017C1E File Offset: 0x00015E1E
+	public void SetUnidPredBatt(Unidad u)
+	{
+		this.UIplayer.unidPredBatt = u;
+	}
+
+	// Token: 0x06000136 RID: 310 RVA: 0x00017C2C File Offset: 0x00015E2C
+	public bool[,] GetLastFogOfWar()
+	{
+		int num = this.TurnOrder - 1;
+		bool flag = false;
+		while (!flag)
+		{
+			if (num < 0)
+			{
+				num = this.jugadores.Length - 1;
+			}
+			if (this.jugadores[num] != null)
+			{
+				flag = num == this.TurnOrder || this.jugadores[num].RealPlayer;
+			}
+			if (!flag)
+			{
+				num--;
+			}
+		}
+		return this.jugadores[num].Visión;
+	}
+
+	// Token: 0x06000137 RID: 311 RVA: 0x00017C98 File Offset: 0x00015E98
+	public void CheckIfOnlyOneRealPlayer()
+	{
+		int num = 0;
+		int num2 = 0;
+		while (num2 < this.jugadores.Length && num < 2)
+		{
+			if (this.jugadores[num2] != null && this.jugadores[num2].RealPlayer)
+			{
+				num++;
+			}
+			num2++;
+		}
+		this.onlyOneRealPlayer = num == 1;
+	}
+
+	// Token: 0x06000138 RID: 312 RVA: 0x00017CEB File Offset: 0x00015EEB
+	public void ManageWaitingForPlayers(bool b)
+	{
+		this.UIplayer.ManageWaitingForPlayers(b);
+	}
+
+	// Token: 0x06000139 RID: 313 RVA: 0x00017CFC File Offset: 0x00015EFC
+	public void CheckCheGuevaraBonus()
+	{
+		int num = this.myRelationshipManager.CheGuevaraBonus();
+		if (num > 0)
+		{
+			this.FreeCult(num);
+		}
+	}
+
+	// Token: 0x0600013A RID: 314 RVA: 0x00017D20 File Offset: 0x00015F20
+	public bool CanShowBattlePrediction()
+	{
+		return !this._scienceTree && !this.CitySelected && !this._goldenAgeTree && !this._religionTree && !this._relationshipMan;
+	}
+
+	// Token: 0x0600013B RID: 315 RVA: 0x00017D4D File Offset: 0x00015F4D
+	private void CheckCasillasCanWin()
+	{
+		if (this.allowedToWinDifficulty && this.casillas_estables < this.jugadores.Length * 6)
+		{
+			this.allowedToWinDifficulty = false;
+		}
+	}
+
+	// Token: 0x0600013C RID: 316 RVA: 0x00017D70 File Offset: 0x00015F70
+	public void EmergencyScienceTreeShutdown()
+	{
+		if (this._scienceTree)
+		{
+			if (this.CienciaOCult)
+			{
+				this.HideCultureTree();
+			}
+			else if (this._goldenAgeTree)
+			{
+				this.HideGoldenAgeTree();
+			}
+			else if (this._religionTree)
+			{
+				this.HideReligionTree();
+			}
+			else if (this._relationshipMan)
+			{
+				this.HideRelationshipMan();
+			}
+			else if (this.EscapeMenu)
+			{
+				if (this._scienceTree)
+				{
+					this._scienceTree = false;
+				}
+				this.UIplayer.EscMenue();
+				this.EscapeMenu = false;
+				this.myEscGuardYCarg.Hide();
+			}
+			if (this.TribuMenu)
+			{
+				this.UntoggleTribes(false);
+				return;
+			}
+			this.HideScienceTree();
+		}
+	}
+
+	// Token: 0x0600013D RID: 317 RVA: 0x00017E12 File Offset: 0x00016012
+	public void SpawnCaminanteBlanco(Jugador jug, int x, int y)
+	{
+		this.unitGenerator.SpawnCaminanteBlanco(x, y, jug);
+	}
+
+	// Token: 0x0600013E RID: 318 RVA: 0x00017E24 File Offset: 0x00016024
+	public void ShowMonopolyBuy()
+	{
+		this.MonopolyChecker = true;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null && i != this.TurnOrder)
+			{
+				this.jugadores[i].ShowMonopoly();
+			}
+		}
+	}
+
+	// Token: 0x0600013F RID: 319 RVA: 0x00017E74 File Offset: 0x00016074
+	private void HideMonopolyBuy()
+	{
+		this.MonopolyChecker = false;
+		for (int i = 0; i < this.jugadores.Length; i++)
+		{
+			if (this.jugadores[i] != null && i != this.TurnOrder)
+			{
+				this.jugadores[i].HideMonopoly();
+			}
+		}
+	}
+
+	// Token: 0x0400012C RID: 300
+	private static GameManager _instance;
+
+	// Token: 0x0400012D RID: 301
+	public bool WorldGenerated;
+
+	// Token: 0x0400012E RID: 302
+	public PlayerCreator playerCreator;
+
+	// Token: 0x0400012F RID: 303
+	private GenerationManager generationManager;
+
+	// Token: 0x04000130 RID: 304
+	private UITribuManager mUITribMan;
+
+	// Token: 0x04000131 RID: 305
+	public UnitGenerator unitGenerator;
+
+	// Token: 0x04000132 RID: 306
+	public CityGenerator cityGenerator;
+
+	// Token: 0x04000133 RID: 307
+	private CityThingsToBUild myCityThingsToBuild;
+
+	// Token: 0x04000134 RID: 308
+	private CityThingBuilt myCityThingBuilt;
+
+	// Token: 0x04000135 RID: 309
+	private UICityManager UIcity;
+
+	// Token: 0x04000136 RID: 310
+	private UIPlayerManager UIplayer;
+
+	// Token: 0x04000137 RID: 311
+	private TheCamera cam;
+
+	// Token: 0x04000138 RID: 312
+	private EscGuardaoYCargadoMenu myEscGuardYCarg;
+
+	// Token: 0x04000139 RID: 313
+	public FogOfWarManager FOW;
+
+	// Token: 0x0400013A RID: 314
+	private ScienceManager scienceManager;
+
+	// Token: 0x0400013B RID: 315
+	private CultureManager cultureManager;
+
+	// Token: 0x0400013C RID: 316
+	private RelCreator mRelCreator;
+
+	// Token: 0x0400013D RID: 317
+	private GoldenAgeManager mGoldenAgeManager;
+
+	// Token: 0x0400013E RID: 318
+	public RelationshipManager myRelationshipManager;
+
+	// Token: 0x0400013F RID: 319
+	public VictoryManager myVictoryManager;
+
+	// Token: 0x04000140 RID: 320
+	private UnitMenu myUnitMenu;
+
+	// Token: 0x04000141 RID: 321
+	public Ciudad[] ciudsConAeropuerto = new Ciudad[500];
+
+	// Token: 0x04000142 RID: 322
+	public int maxCiudAeropuerto;
+
+	// Token: 0x04000143 RID: 323
+	public Ciudad[] ciudsConPuerto = new Ciudad[500];
+
+	// Token: 0x04000144 RID: 324
+	public int maxCiudPuerto;
+
+	// Token: 0x04000145 RID: 325
+	public Jugador[] jugadores;
+
+	// Token: 0x04000146 RID: 326
+	public int IP1;
+
+	// Token: 0x04000147 RID: 327
+	public int IP2;
+
+	// Token: 0x04000148 RID: 328
+	public int IP3;
+
+	// Token: 0x04000149 RID: 329
+	public bool GameWon;
+
+	// Token: 0x0400014A RID: 330
+	private bool EscapeMenu;
+
+	// Token: 0x0400014B RID: 331
+	public bool TribuMenu;
+
+	// Token: 0x0400014C RID: 332
+	private bool CienciaOCult;
+
+	// Token: 0x0400014D RID: 333
+	public bool canSelect = true;
+
+	// Token: 0x0400014E RID: 334
+	public int TurnOrder = -1;
+
+	// Token: 0x0400014F RID: 335
+	private bool playing;
+
+	// Token: 0x04000150 RID: 336
+	public bool AutoSkip;
+
+	// Token: 0x04000151 RID: 337
+	public bool CitySelected;
+
+	// Token: 0x04000152 RID: 338
+	private bool _scienceTree;
+
+	// Token: 0x04000153 RID: 339
+	private bool _goldenAgeTree;
+
+	// Token: 0x04000154 RID: 340
+	private bool _religionTree;
+
+	// Token: 0x04000155 RID: 341
+	private bool _relationshipMan;
+
+	// Token: 0x04000156 RID: 342
+	public Maravilla[] MaravsDone = new Maravilla[25];
+
+	// Token: 0x04000157 RID: 343
+	public int maxMarav;
+
+	// Token: 0x04000158 RID: 344
+	public int FreeTechs;
+
+	// Token: 0x04000159 RID: 345
+	public int FreeCulture;
+
+	// Token: 0x0400015A RID: 346
+	public bool BowserInMatch;
+
+	// Token: 0x0400015B RID: 347
+	public bool FranceInMatch;
+
+	// Token: 0x0400015C RID: 348
+	private const int FRANCE_DISTANCE = 10;
+
+	// Token: 0x0400015D RID: 349
+	public bool GilgameshInMatch;
+
+	// Token: 0x0400015E RID: 350
+	private bool MonopolyChecker;
+
+	// Token: 0x0400015F RID: 351
+	public bool ToggleCiudAreas;
+
+	// Token: 0x04000160 RID: 352
+	public int playerWinner = -1;
+
+	// Token: 0x04000161 RID: 353
+	public int victoryType = -1;
+
+	// Token: 0x04000162 RID: 354
+	public int difficultyAI = -1;
+
+	// Token: 0x04000163 RID: 355
+	public bool[] seenVictory;
+
+	// Token: 0x04000164 RID: 356
+	public bool onlyOneRealPlayer;
+
+	// Token: 0x04000165 RID: 357
+	public bool allowedToWinDifficulty;
+
+	// Token: 0x04000166 RID: 358
+	public bool AIStop;
+
+	// Token: 0x04000167 RID: 359
+	public bool guardAutom;
+
+	// Token: 0x04000168 RID: 360
+	private int guardSegCont;
+
+	// Token: 0x04000169 RID: 361
+	private int guardSegStart;
+
+	// Token: 0x0400016A RID: 362
+	private const int TURNOS_GUARD_SEG = 10;
+
+	// Token: 0x0400016B RID: 363
+	private int casillas_estables;
+}

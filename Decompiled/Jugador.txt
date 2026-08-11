@@ -1,0 +1,3254 @@
+using System;
+using System.Collections;
+using UnityEngine;
+
+// Token: 0x0200001B RID: 27
+public class Jugador : MonoBehaviour
+{
+	// Token: 0x06000151 RID: 337 RVA: 0x00018D0D File Offset: 0x00016F0D
+	public float FelicidadBar()
+	{
+		if (this.FelicidadObjetivo <= 0f)
+		{
+			return 0f;
+		}
+		if (this.FelicidadTotal >= this.FelicidadObjetivo)
+		{
+			return 1f;
+		}
+		return this.FelicidadTotal / this.FelicidadObjetivo;
+	}
+
+	// Token: 0x06000152 RID: 338 RVA: 0x00018D43 File Offset: 0x00016F43
+	public void AddDeadLeader(Sprite s, string n)
+	{
+		this.maxDeadLeaders++;
+		this.DeadLeaders[this.maxDeadLeaders] = s;
+		this.DeadLeadersNames[this.maxDeadLeaders] = n;
+	}
+
+	// Token: 0x06000153 RID: 339 RVA: 0x00018D70 File Offset: 0x00016F70
+	public float AttackMultiplier()
+	{
+		float num = 1f;
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Atack10)
+			{
+				num += 0.1f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Atack20)
+			{
+				num += 0.2f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Atack30)
+			{
+				num += 0.3f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Atack50)
+			{
+				num += 0.5f;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000154 RID: 340 RVA: 0x00018DE4 File Offset: 0x00016FE4
+	public int ExtraAttack()
+	{
+		int num = 0;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 5;
+				break;
+			case 1:
+				num -= 2;
+				break;
+			case 3:
+				num++;
+				break;
+			case 4:
+				num += 2;
+				break;
+			case 5:
+				num += 3;
+				break;
+			case 6:
+				num += 5;
+				break;
+			case 7:
+				num += 5;
+				break;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000155 RID: 341 RVA: 0x00018E58 File Offset: 0x00017058
+	public int ExtraMovement()
+	{
+		int num = 0;
+		if (this.Brandemburgo)
+		{
+			num = 1;
+		}
+		if (this.lider == GameSettings.Lideres.Bolivar)
+		{
+			num += 3;
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Mov1)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000156 RID: 342 RVA: 0x00018EA4 File Offset: 0x000170A4
+	public int ExtraConstruccion()
+	{
+		int num = 0;
+		if (this.Piramides)
+		{
+			num = 2;
+		}
+		if (this.lider == GameSettings.Lideres.Winnie)
+		{
+			num += 2;
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Trab1)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000157 RID: 343 RVA: 0x00018EF0 File Offset: 0x000170F0
+	public float CienciaMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Celestia)
+		{
+			num += this.getCelestiaBonus();
+		}
+		if (this.lider == GameSettings.Lideres.Gilgamesh)
+		{
+			num += GameManager.Instance.GilgameshBonus(this);
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Seleuco)
+		{
+			num += (float)this.maxCiudad * 0.15f;
+		}
+		if (this.TorreInclinada)
+		{
+			num += 0.3f;
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Cien5)
+			{
+				num += 0.05f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Cien10)
+			{
+				num += 0.1f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Cien15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Cien20)
+			{
+				num += 0.2f;
+			}
+		}
+		num += this.GilgameshBonus;
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x06000158 RID: 344 RVA: 0x00019080 File Offset: 0x00017280
+	public float CulturaMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Celestia)
+		{
+			num += this.getCelestiaBonus();
+		}
+		if (this.lider == GameSettings.Lideres.Gilgamesh)
+		{
+			num += GameManager.Instance.GilgameshBonus(this);
+		}
+		if (this.lider == GameSettings.Lideres.Eggman)
+		{
+			num -= 0.25f;
+		}
+		if (this.lider == GameSettings.Lideres.Miku && this.TurnLeftEpocaDorada != -1)
+		{
+			num += 2f;
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Cul5)
+			{
+				num += 0.05f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Cul10)
+			{
+				num += 0.1f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Cul15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Cul20)
+			{
+				num += 0.2f;
+			}
+		}
+		num += this.GilgameshBonus;
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x06000159 RID: 345 RVA: 0x00019218 File Offset: 0x00017418
+	public float OroMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Celestia)
+		{
+			num += this.getCelestiaBonus();
+		}
+		if (this.lider == GameSettings.Lideres.Gilgamesh)
+		{
+			num += GameManager.Instance.GilgameshBonus(this);
+		}
+		if (this.lider == GameSettings.Lideres.Rubius)
+		{
+			num += 0.21f;
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Oro5)
+			{
+				num += 0.05f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Oro10)
+			{
+				num += 0.1f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Oro15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Oro20)
+			{
+				num += 0.2f;
+			}
+		}
+		num += this.GilgameshBonus;
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x0600015A RID: 346 RVA: 0x00019394 File Offset: 0x00017594
+	public float TurismoMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Miku && this.TurnLeftEpocaDorada != -1)
+		{
+			num += 2f;
+		}
+		if (this.lider == GameSettings.Lideres.Gilgamesh)
+		{
+			num += GameManager.Instance.GilgameshBonus(this);
+		}
+		if (this.lider == GameSettings.Lideres.Eggman)
+		{
+			num -= 0.25f;
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		num += this.GilgameshBonus;
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x0600015B RID: 347 RVA: 0x000194B8 File Offset: 0x000176B8
+	public float FeMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Eggman)
+		{
+			num -= 0.25f;
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Fe5)
+			{
+				num += 0.05f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Fe10)
+			{
+				num += 0.1f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Fe15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Fe20)
+			{
+				num += 0.2f;
+			}
+		}
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x0600015C RID: 348 RVA: 0x00019600 File Offset: 0x00017800
+	public float InfluenciaMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Inf5)
+			{
+				num += 0.05f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Inf10)
+			{
+				num += 0.1f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Inf15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Inf20)
+			{
+				num += 0.2f;
+			}
+		}
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x0600015D RID: 349 RVA: 0x00019718 File Offset: 0x00017918
+	public float ComidaMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Celestia)
+		{
+			num += this.getCelestiaBonus();
+		}
+		if (this.lider == GameSettings.Lideres.Gilgamesh)
+		{
+			num += GameManager.Instance.GilgameshBonus(this);
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Com15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Com30)
+			{
+				num += 0.3f;
+			}
+		}
+		num += this.GilgameshBonus;
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x0600015E RID: 350 RVA: 0x0001985C File Offset: 0x00017A5C
+	public float ProduccionMultiplier()
+	{
+		float num = 1f;
+		if (!this.RealPlayer)
+		{
+			switch (GameManager.Instance.difficultyAI)
+			{
+			case 0:
+				num -= 0.4f;
+				break;
+			case 1:
+				num -= 0.2f;
+				break;
+			case 3:
+				num += 0.05f;
+				break;
+			case 4:
+				num += 0.1f;
+				break;
+			case 5:
+				num += 0.2f;
+				break;
+			case 6:
+				num += 0.5f;
+				break;
+			case 7:
+				num += 1f;
+				break;
+			}
+		}
+		if (this.lider == GameSettings.Lideres.Celestia)
+		{
+			num += this.getCelestiaBonus();
+		}
+		if (this.lider == GameSettings.Lideres.Gilgamesh)
+		{
+			num += GameManager.Instance.GilgameshBonus(this);
+		}
+		if (this.lider == GameSettings.Lideres.Dedede)
+		{
+			if (this.GoldenAgeMultiplier != 0f)
+			{
+				num += 0.5f;
+			}
+			else
+			{
+				num += 0.1f;
+			}
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Prod5)
+			{
+				num += 0.05f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Prod15)
+			{
+				num += 0.15f;
+			}
+			if (this.CultureTree[i] == Jugador.CultBenef.Prod30)
+			{
+				num += 0.3f;
+			}
+		}
+		num += this.GilgameshBonus;
+		int num2 = 1;
+		if (this.BigBen)
+		{
+			num2 = 2;
+		}
+		return num + this.GoldenAgeMultiplier * (float)num2;
+	}
+
+	// Token: 0x0600015F RID: 351 RVA: 0x000199B4 File Offset: 0x00017BB4
+	public int CienciaGranja()
+	{
+		int num = 0;
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.CienGran)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000160 RID: 352 RVA: 0x000199E8 File Offset: 0x00017BE8
+	public int CulturaGranja()
+	{
+		int num = 0;
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.CultGranj)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000161 RID: 353 RVA: 0x00019A1C File Offset: 0x00017C1C
+	public int CienciaMina()
+	{
+		int num = 0;
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.CienMin)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000162 RID: 354 RVA: 0x00019A50 File Offset: 0x00017C50
+	public int CulturaMina()
+	{
+		int num = 0;
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.CultMin)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000163 RID: 355 RVA: 0x00019A84 File Offset: 0x00017C84
+	public int RecursosMultiplier()
+	{
+		int num = 1;
+		if (this.lider == GameSettings.Lideres.Stalin)
+		{
+			num = 2;
+		}
+		for (int i = 0; i < this.CultureTree.Length; i++)
+		{
+			if (this.CultureTree[i] == Jugador.CultBenef.Recursos2)
+			{
+				num *= 2;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000164 RID: 356 RVA: 0x00019AC4 File Offset: 0x00017CC4
+	public void Create(GameSettings.Lideres lid, string[] cityNames, Color _color1, Color _color2, Building[] CanBuild, UnitScriptable[] CanUni, string _nombre, Maravilla PanYCirco, bool _realJugador)
+	{
+		this.Nombre = _nombre;
+		for (int i = 0; i < CanBuild.Length; i++)
+		{
+			this.MyEdifs[i] = CanBuild[i];
+		}
+		while (this.maxUIUnidad < CanUni.Length)
+		{
+			this.CanUnit[this.maxUIUnidad] = CanUni[this.maxUIUnidad];
+			this.maxUIUnidad++;
+		}
+		if (lid == GameSettings.Lideres.Caesar)
+		{
+			this.MyMaravillas[0] = PanYCirco;
+		}
+		if (lid == GameSettings.Lideres.Dario)
+		{
+			this.FelicidadObjetivo /= 2f;
+		}
+		this.lider = lid;
+		this.CityNameList = cityNames;
+		this.color1 = _color1;
+		this.color2 = _color2;
+		for (int j = 0; j < this.EpocasDoradasHechas.Length; j++)
+		{
+			this.EpocasDoradasHechas[j] = 0;
+		}
+		this.RealPlayer = _realJugador;
+		this.IniciateFOW();
+		if (this.lider == GameSettings.Lideres.NightKing)
+		{
+			this.navegar = 2;
+		}
+		GameManager.Instance.InicializeColonos(base.GetComponent<Jugador>());
+	}
+
+	// Token: 0x06000165 RID: 357 RVA: 0x00019BB4 File Offset: 0x00017DB4
+	private void IniciateFOW()
+	{
+		this.Visión = new bool[Tablero.Instance.tablero.GetLength(0), Tablero.Instance.tablero.GetLength(1)];
+		for (int i = 0; i < this.Visión.GetLength(0); i++)
+		{
+			for (int j = 0; j < this.Visión.GetLength(1); j++)
+			{
+				this.Visión[i, j] = false;
+			}
+		}
+	}
+
+	// Token: 0x06000166 RID: 358 RVA: 0x00019C28 File Offset: 0x00017E28
+	public void ChangeSelectedUnit(Unidad unit)
+	{
+		this.OrganiseUnits(false);
+		bool flag = true;
+		int num = 0;
+		while (flag && num < this.maxUnidad)
+		{
+			if (this.Unidades[num] == unit)
+			{
+				flag = false;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (num < this.maxUnidad)
+		{
+			if (this.turnUnit >= this.maxUnidad)
+			{
+				this.turnUnit = num;
+			}
+			if (!this.Unidades[num].moved() && (num != this.turnUnit || !this.Unidades[num].Turno))
+			{
+				Unidad unidad = this.Unidades[num];
+				this.Unidades[num] = this.Unidades[this.turnUnit];
+				this.Unidades[this.turnUnit] = unidad;
+				if (this.Unidades[num] != null)
+				{
+					this.Unidades[num].Turno = false;
+				}
+				this.Unidades[this.turnUnit].Turno = true;
+				this.Unidades[this.turnUnit].CamGoTo();
+				GameManager.Instance.ChangeUnitMenu(this.Unidades[this.turnUnit]);
+			}
+			GameManager.Instance.SetUnidPredBatt(unit);
+		}
+	}
+
+	// Token: 0x06000167 RID: 359 RVA: 0x00019D48 File Offset: 0x00017F48
+	private void ActivateUnit(Unidad unit, int x = 0)
+	{
+		if (this.Turno)
+		{
+			if (this.maxUnidad == 0 && GameManager.Instance.GetAutoSkip() && !GameManager.Instance.TribuMenu && this.RealPlayer)
+			{
+				GameManager.Instance.ChangeAutoSkipToggle();
+			}
+			if (x != this.maxUnidad)
+			{
+				this.turnUnit = x;
+				if (this.Unidades[this.turnUnit] == null)
+				{
+					this.OrganiseUnits(false);
+					if (this.Unidades[this.turnUnit] != null)
+					{
+						this.ActivateUnit(unit, x);
+					}
+				}
+				else if (!this.Unidades[this.turnUnit].fortified && !this.Unidades[this.turnUnit].moved())
+				{
+					this.Unidades[this.turnUnit].Turno = true;
+					GameManager.Instance.ChangeUnitMenu(this.Unidades[this.turnUnit]);
+					this.Unidades[this.turnUnit].CamGoTo();
+					if (TutorialManager.Instance.Activado && this.RealPlayer)
+					{
+						this.Unidades[this.turnUnit].CheckTutMessages();
+					}
+				}
+				else
+				{
+					this.ActivateUnit(this.Unidades[this.turnUnit + 1], this.turnUnit + 1);
+				}
+				GameManager.Instance.SetUnidPredBatt(this.Unidades[this.turnUnit]);
+				return;
+			}
+			GameManager.Instance.ChangeUnitMenu(null);
+			if (!this.CheckCities() && GameManager.Instance.GetAutoSkip() && !GameManager.Instance.TribuMenu && GameManager.Instance.CanShowBattlePrediction() && !GameManager.Instance.CitySelected)
+			{
+				this.SkipTurn();
+			}
+		}
+	}
+
+	// Token: 0x06000168 RID: 360 RVA: 0x00019EF0 File Offset: 0x000180F0
+	public void AddUnit(Unidad unit)
+	{
+		this.Unidades[this.maxUnidad] = unit;
+		if (this.maxUnidad < 300)
+		{
+			this.maxUnidad++;
+		}
+	}
+
+	// Token: 0x06000169 RID: 361 RVA: 0x00019F1C File Offset: 0x0001811C
+	public void DeleteUnit(Unidad unit)
+	{
+		int num = 0;
+		bool flag = true;
+		while (flag && num < this.maxUnidad)
+		{
+			if (this.Unidades[num] == unit)
+			{
+				flag = false;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (num < this.maxUnidad)
+		{
+			this.Unidades[num] = null;
+			this.OrganiseUnits(true);
+		}
+	}
+
+	// Token: 0x0600016A RID: 362 RVA: 0x00019F6C File Offset: 0x0001816C
+	public void OrganiseUnits(bool activateNext = false)
+	{
+		bool flag = false;
+		int num = 0;
+		while (num < this.maxUnidad && !flag)
+		{
+			if (this.Unidades[num] == null)
+			{
+				flag = true;
+				this.Unidades[num] = this.Unidades[this.maxUnidad - 1];
+				this.Unidades[this.maxUnidad - 1] = null;
+				this.maxUnidad--;
+				if (this.Unidades[num] != null && activateNext)
+				{
+					if (this.Unidades[this.turnUnit] != null)
+					{
+						this.Unidades[this.turnUnit].Turno = false;
+					}
+					this.ActivateUnit(this.Unidades[num], 0);
+				}
+			}
+			num++;
+		}
+		if (flag)
+		{
+			this.OrganiseUnits(false);
+		}
+	}
+
+	// Token: 0x0600016B RID: 363 RVA: 0x0001A032 File Offset: 0x00018232
+	private IEnumerator WaitABit()
+	{
+		yield return new WaitForSeconds(0.5f);
+		this.ActivateUnit(this.Unidades[this.turnUnit + 1], this.turnUnit + 1);
+		yield break;
+	}
+
+	// Token: 0x0600016C RID: 364 RVA: 0x0001A044 File Offset: 0x00018244
+	private void ManageUnitTipes()
+	{
+		for (int i = 0; i < this.maxUIUnidad; i++)
+		{
+			for (int j = i + 1; j < this.maxUIUnidad; j++)
+			{
+				if (this.CanUnit[i] == null || this.CanUnit[j] == null)
+				{
+					GlobalMessage.Instance.Message("Error: Uno de los prefabs está vacío por alguna razón");
+				}
+				else if (this.CanUnit[i].Prefab.GetComponent<Unidad>().Tipo == this.CanUnit[j].Prefab.GetComponent<Unidad>().Tipo)
+				{
+					if (this.CanUnit[i].Coste > this.CanUnit[j].Coste)
+					{
+						this.CanUnit[j] = null;
+						int num = j;
+						while (num + 1 < this.maxUIUnidad)
+						{
+							this.CanUnit[num] = this.CanUnit[num + 1];
+							num++;
+						}
+						this.maxUIUnidad--;
+						j--;
+					}
+					else
+					{
+						this.CanUnit[i] = null;
+						int num2 = i;
+						while (num2 + 1 < this.maxUIUnidad)
+						{
+							this.CanUnit[num2] = this.CanUnit[num2 + 1];
+							num2++;
+						}
+						this.maxUIUnidad--;
+						i--;
+						j = this.maxUIUnidad;
+					}
+				}
+			}
+		}
+	}
+
+	// Token: 0x0600016D RID: 365 RVA: 0x0001A18D File Offset: 0x0001838D
+	public Unidad getCurrentUnit()
+	{
+		return this.Unidades[this.turnUnit];
+	}
+
+	// Token: 0x0600016E RID: 366 RVA: 0x0001A19C File Offset: 0x0001839C
+	public void MoveUnit(int direction)
+	{
+		if (this.Turno)
+		{
+			if (this.Unidades[this.turnUnit] == null)
+			{
+				this.OrganiseUnits(false);
+				return;
+			}
+			if (this.Unidades[this.turnUnit].Turno)
+			{
+				this.Unidades[this.turnUnit].Move(direction);
+				if (direction == 5)
+				{
+					Unidad unidad = this.Unidades[this.maxUnidad - 1];
+					this.Unidades[this.maxUnidad - 1] = this.Unidades[this.turnUnit];
+					this.Unidades[this.turnUnit] = unidad;
+					if (this.Unidades[this.turnUnit] != null)
+					{
+						this.ActivateUnit(this.Unidades[this.turnUnit], this.turnUnit);
+						return;
+					}
+				}
+				else if (this.Unidades[this.turnUnit] != null && this.Unidades[this.turnUnit].moved())
+				{
+					this.Unidades[this.turnUnit].Turno = false;
+					base.StartCoroutine(this.WaitABit());
+				}
+			}
+		}
+	}
+
+	// Token: 0x0600016F RID: 367 RVA: 0x0001A2B1 File Offset: 0x000184B1
+	public void AIMoveUnit(int direction, int pos)
+	{
+		if (this.Turno)
+		{
+			if (this.Unidades[pos] == null)
+			{
+				this.OrganiseUnits(false);
+				return;
+			}
+			this.Unidades[pos].Move(direction);
+		}
+	}
+
+	// Token: 0x06000170 RID: 368 RVA: 0x0001A2E1 File Offset: 0x000184E1
+	public void Skip(bool a = true)
+	{
+		if (a)
+		{
+			this.ActivateUnit(this.Unidades[this.turnUnit + 1], this.turnUnit + 1);
+			return;
+		}
+		this.ActivateUnit(this.Unidades[this.turnUnit], this.turnUnit);
+	}
+
+	// Token: 0x06000171 RID: 369 RVA: 0x0001A31D File Offset: 0x0001851D
+	public void Build()
+	{
+		if (this.Unidades[this.turnUnit] != null)
+		{
+			this.Unidades[this.turnUnit].Build();
+		}
+	}
+
+	// Token: 0x06000172 RID: 370 RVA: 0x0001A346 File Offset: 0x00018546
+	public void BuildThing(int i)
+	{
+		if (this.Unidades[this.turnUnit] != null)
+		{
+			this.Unidades[this.turnUnit].BuildThing(i);
+			return;
+		}
+		this.OrganiseUnits(false);
+	}
+
+	// Token: 0x06000173 RID: 371 RVA: 0x0001A378 File Offset: 0x00018578
+	public bool Convert()
+	{
+		if (this.Unidades[this.turnUnit] != null)
+		{
+			Unidad unidad = this.Unidades[this.turnUnit];
+			unidad.Convert();
+			return unidad == null;
+		}
+		this.OrganiseUnits(false);
+		return false;
+	}
+
+	// Token: 0x06000174 RID: 372 RVA: 0x0001A3B1 File Offset: 0x000185B1
+	public bool Inquisition()
+	{
+		if (this.Unidades[this.turnUnit] != null)
+		{
+			Unidad unidad = this.Unidades[this.turnUnit];
+			unidad.Inquisition();
+			return unidad == null;
+		}
+		this.OrganiseUnits(false);
+		return false;
+	}
+
+	// Token: 0x06000175 RID: 373 RVA: 0x0001A3EC File Offset: 0x000185EC
+	public void SkipTurn()
+	{
+		if (this.turnUnit + 1 < this.maxUnidad)
+		{
+			this.Unidades[this.turnUnit].CamGoTo();
+			return;
+		}
+		if (!this.RealPlayer)
+		{
+			MainAIManager.Instance.checkScience();
+			MainAIManager.Instance.checkCulture();
+			for (int i = 0; i < this.maxUnidad; i++)
+			{
+				if (this.Unidades[i] != null)
+				{
+					this.Unidades[i].Heal();
+				}
+				else
+				{
+					this.OrganiseUnits(false);
+				}
+			}
+			this.Turno = false;
+			if (GameManager.Instance.BowserInMatch)
+			{
+				this.CheckBowserDamage();
+			}
+			GameManager.Instance.NextTurn(false, 0, false);
+			return;
+		}
+		if (this.researching == null && !this.FinTecnologias && this.lider != GameSettings.Lideres.NightKing)
+		{
+			GameManager.Instance.ScienceTree();
+			return;
+		}
+		if (GameManager.Instance.myRelationshipManager.Notif[GameManager.Instance.TurnOrder] <= 0)
+		{
+			for (int j = 0; j < this.maxUnidad; j++)
+			{
+				if (this.Unidades[j] == null)
+				{
+					this.OrganiseUnits(false);
+				}
+				else
+				{
+					this.Unidades[j].Heal();
+				}
+			}
+			this.Turno = false;
+			if (GameManager.Instance.BowserInMatch)
+			{
+				this.CheckBowserDamage();
+			}
+			GameManager.Instance.NextTurn(false, 0, false);
+			return;
+		}
+		GameManager.Instance.RelationshipDown();
+	}
+
+	// Token: 0x06000176 RID: 374 RVA: 0x0001A54C File Offset: 0x0001874C
+	public void AIEnd()
+	{
+		if (!GameManager.Instance.AIStop)
+		{
+			this.CheckCities();
+			this.turnUnit = this.maxUnidad;
+			this.SkipTurn();
+			base.StopAllCoroutines();
+		}
+	}
+
+	// Token: 0x06000177 RID: 375 RVA: 0x0001A57C File Offset: 0x0001877C
+	public void Explore(int x, int y, int vision, bool loading)
+	{
+		if (!this.todasLasCasillasVisibles)
+		{
+			for (int i = vision; i >= vision * -1; i--)
+			{
+				for (int j = vision; j >= vision * -1; j--)
+				{
+					if (x + i >= 0 && x + i < this.Visión.GetLength(0) && y + j >= 0 && y + j < this.Visión.GetLength(1) && !this.Visión[x + i, y + j])
+					{
+						this.Visión[x + i, y + j] = true;
+					}
+				}
+			}
+			if (this.RealPlayer)
+			{
+				GameManager.Instance.CheckFogOfWar(base.GetComponent<Jugador>(), loading);
+			}
+			this.CheckAllCasillasVisibles();
+		}
+	}
+
+	// Token: 0x06000178 RID: 376 RVA: 0x0001A624 File Offset: 0x00018824
+	private void CheckAllCasillasVisibles()
+	{
+		bool flag = true;
+		int num = 0;
+		while (flag && num < this.Visión.GetLength(0))
+		{
+			int num2 = 0;
+			while (flag && num2 < this.Visión.GetLength(1))
+			{
+				if (!this.Visión[num, num2])
+				{
+					flag = false;
+				}
+				num2++;
+			}
+			num++;
+		}
+		this.todasLasCasillasVisibles = false;
+	}
+
+	// Token: 0x06000179 RID: 377 RVA: 0x0001A680 File Offset: 0x00018880
+	public void DeactivateAllUnitColliders()
+	{
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i] != null)
+			{
+				this.Unidades[i].DeactivateCollider();
+			}
+		}
+	}
+
+	// Token: 0x0600017A RID: 378 RVA: 0x0001A6BC File Offset: 0x000188BC
+	public void ActivateAllUnitColliders()
+	{
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i] != null)
+			{
+				this.Unidades[i].ActivateCollider();
+			}
+		}
+	}
+
+	// Token: 0x0600017B RID: 379 RVA: 0x0001A6F8 File Offset: 0x000188F8
+	public void AddCiudsCapital(int i)
+	{
+		if (this.Ciudades[0] != null)
+		{
+			this.Ciudades[0].Ciudadanos += i;
+			this.Ciudades[0].Vida += (float)(i * this.Ciudades[0].CIUDADANOS_VIDA);
+			this.Ciudades[0].ActualizaCiud();
+		}
+	}
+
+	// Token: 0x0600017C RID: 380 RVA: 0x0001A75C File Offset: 0x0001895C
+	public bool CheckCities()
+	{
+		bool flag = false;
+		int num = 0;
+		while (num < this.maxCiudad && !flag)
+		{
+			if (this.Ciudades[num].ProducciónObjetivo == 0)
+			{
+				flag = true;
+				if (this.RealPlayer)
+				{
+					this.Ciudades[num].ClickSelect();
+				}
+				else
+				{
+					MainAIManager.Instance.CityBuild(this.Ciudades[num]);
+				}
+			}
+			num++;
+		}
+		return flag;
+	}
+
+	// Token: 0x0600017D RID: 381 RVA: 0x0001A7BC File Offset: 0x000189BC
+	public void NewCity(int x, int y, int rel)
+	{
+		int num = 1;
+		this.HasStarted = true;
+		while (this.maxCiudad >= this.CityNameList.Length * num)
+		{
+			num++;
+		}
+		int num2 = this.maxCiudad - this.CityNameList.Length * (num - 1);
+		string text = this.CityNameList[num2];
+		if (num > 1)
+		{
+			text = text + " " + num.ToString();
+		}
+		if (this.Capital)
+		{
+			GameManager.Instance.NewCity(base.GetComponent<Jugador>(), x, y, text, false, rel);
+		}
+		else
+		{
+			GameManager.Instance.NewCity(base.GetComponent<Jugador>(), x, y, text, true, rel);
+			this.Capital = true;
+		}
+		this.ActivateUnit(this.Unidades[this.turnUnit + 1], this.turnUnit + 1);
+		MainAIManager.Instance.ChangeCityAILike(x, y);
+		this.OrganiseUnits(false);
+	}
+
+	// Token: 0x0600017E RID: 382 RVA: 0x0001A889 File Offset: 0x00018A89
+	public void AddCity(Ciudad city)
+	{
+		this.Ciudades[this.maxCiudad] = city;
+		this.maxCiudad++;
+	}
+
+	// Token: 0x0600017F RID: 383 RVA: 0x0001A8A8 File Offset: 0x00018AA8
+	public void RemoveCity(Ciudad city)
+	{
+		int i = 0;
+		bool flag = false;
+		while (i < this.maxCiudad)
+		{
+			if (flag)
+			{
+				break;
+			}
+			if (this.Ciudades[i] == city)
+			{
+				flag = true;
+			}
+			else
+			{
+				i++;
+			}
+		}
+		while (i < this.maxCiudad && i + 1 < this.Ciudades.Length)
+		{
+			this.Ciudades[i] = this.Ciudades[i + 1];
+			i++;
+		}
+		this.maxCiudad--;
+		this.CheckifDead();
+	}
+
+	// Token: 0x06000180 RID: 384 RVA: 0x0001A924 File Offset: 0x00018B24
+	public void MaravConstructed(Maravilla m)
+	{
+		for (int i = 0; i < this.MyMaravillas.Length; i++)
+		{
+			if (this.MyMaravillas[i] == m)
+			{
+				this.MyMaravillas[i] = null;
+			}
+		}
+		for (int j = 0; j < this.maxCiudad; j++)
+		{
+			if (this.Ciudades[j].MaravConstruyendo == m)
+			{
+				this.Ciudades[j].ProducciónObjetivo = 0;
+				this.Ciudades[j].MaravConstruyendo = null;
+				this.Ciudades[j].ProducciónAlmacenada = this.Ciudades[j].ProducciónAlmacenada / 2f;
+			}
+		}
+	}
+
+	// Token: 0x06000181 RID: 385 RVA: 0x0001A9C0 File Offset: 0x00018BC0
+	public int GetCityJulianBonus(Ciudad c)
+	{
+		int num = 0;
+		if (c.myPlayer == this)
+		{
+			for (int i = 0; i < this.maxUnidad; i++)
+			{
+				if (this.Unidades[i].fortified)
+				{
+					double num2 = Math.Sqrt((double)((c.posX - this.Unidades[i].posX) * (c.posX - this.Unidades[i].posX) + (c.posY - this.Unidades[i].posY) * (c.posY - this.Unidades[i].posY)));
+					bool flag = false;
+					int num3 = 0;
+					while (!flag && num3 < this.maxCiudad)
+					{
+						if (num2 > Math.Sqrt((double)((this.Ciudades[num3].posX - this.Unidades[i].posX) * (this.Ciudades[num3].posX - this.Unidades[i].posX) + (this.Ciudades[num3].posY - this.Unidades[i].posY) * (this.Ciudades[num3].posY - this.Unidades[i].posY))))
+						{
+							flag = true;
+						}
+						num3++;
+					}
+					if (!flag)
+					{
+						num += 2;
+					}
+				}
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x06000182 RID: 386 RVA: 0x0001AB0C File Offset: 0x00018D0C
+	public void HandleMarav(Maravilla marav, Ciudad ciud)
+	{
+		if (marav != null && marav.Nombre != null)
+		{
+			if (marav.Nombre == "Alhambra")
+			{
+				for (int i = 0; i < this.maxCiudad; i++)
+				{
+					this.Ciudades[i].Defense += 25;
+					this.Ciudades[i].Vida += 25f;
+				}
+				return;
+			}
+			if (marav.Nombre == "Ankor Wat")
+			{
+				for (int j = 0; j < this.maxCiudad; j++)
+				{
+					this.Ciudades[j].Ciudadanos += 2;
+					this.Ciudades[j].Vida += (float)(2 * this.Ciudades[j].CIUDADANOS_VIDA);
+					this.Ciudades[j].ActualizaCiud();
+				}
+				return;
+			}
+			if (marav.Nombre == "Aterrizaje en la Luna")
+			{
+				if (this.RealPlayer)
+				{
+					GameManager.Instance.CheckIfScienceVictory();
+					return;
+				}
+				GameManager.Instance.AICheckIfScienceVictory();
+				return;
+			}
+			else
+			{
+				if (marav.Nombre == "Big Ben")
+				{
+					this.BigBen = true;
+					return;
+				}
+				if (marav.Nombre == "Chichen Itza")
+				{
+					this.ChichenItza = true;
+					return;
+				}
+				if (marav.Nombre == "Compañía de las Indias Orientales")
+				{
+					this.IndiasOrientales = true;
+					for (int k = 0; k < this.maxCiudad; k++)
+					{
+						for (int l = 0; l < this.Ciudades[k].EdifMax; l++)
+						{
+							if (this.Ciudades[k].Edificios[l].Nombre == "Banco")
+							{
+								this.Ciudades[k].DineroBase++;
+							}
+							if (this.Ciudades[k].Edificios[l].Nombre == "Mercado")
+							{
+								this.Ciudades[k].DineroBase++;
+							}
+							if (this.Ciudades[k].Edificios[l].Nombre == "Bolsa")
+							{
+								this.Ciudades[k].DineroBase++;
+							}
+						}
+					}
+					return;
+				}
+				if (marav.Nombre == "Cristo Redentor")
+				{
+					this.CristoRedentor = true;
+					return;
+				}
+				if (marav.Nombre == "Estatua de la Libertad")
+				{
+					this.EstatuaLibertad = true;
+					return;
+				}
+				if (marav.Nombre == "Gran Muralla")
+				{
+					for (int m = 0; m < this.maxCiudad; m++)
+					{
+						this.Ciudades[m].Defense += 50;
+						this.Ciudades[m].Vida += 50f;
+					}
+					return;
+				}
+				if (marav.Nombre == "Gran biblioteca")
+				{
+					GameManager.Instance.FreeTech(1);
+					return;
+				}
+				if (marav.Nombre == "Internet")
+				{
+					this.CulturaTotal *= 3f;
+					if (this.lider == GameSettings.Lideres.Rubius)
+					{
+						if (this.RealPlayer)
+						{
+							GameManager.Instance.VictoriaRubius();
+							return;
+						}
+						GameManager.Instance.AIVictoriaRubius();
+						return;
+					}
+				}
+				else
+				{
+					if (marav.Nombre == "Machu Picchu")
+					{
+						this.MachuPichu = true;
+						return;
+					}
+					if (marav.Nombre == "Naciones Unidas")
+					{
+						if (this.RealPlayer)
+						{
+							GameManager.Instance.CheckIfCulturalVictory();
+							return;
+						}
+						GameManager.Instance.AICheckIfCulturalVictory();
+						return;
+					}
+					else
+					{
+						if (marav.Nombre == "Notre Dame")
+						{
+							this.NotreDame = true;
+							return;
+						}
+						if (marav.Nombre == "Oráculo")
+						{
+							GameManager.Instance.FreeCult(1);
+							return;
+						}
+						if (marav.Nombre == "Oxford")
+						{
+							GameManager.Instance.FreeTech(2);
+							return;
+						}
+						if (marav.Nombre == "Petra")
+						{
+							this.Petra = true;
+							for (int n = 0; n < this.maxCiudad; n++)
+							{
+								int num = 0;
+								bool flag = false;
+								while (num < this.Ciudades[n].EdifMax && !flag)
+								{
+									if (this.Ciudades[n].Edificios[num].Nombre == "Fundición")
+									{
+										this.Ciudades[n].ProducciónBase += 3;
+										flag = true;
+									}
+									num++;
+								}
+							}
+							return;
+						}
+						if (marav.Nombre == "Pirámides")
+						{
+							this.Piramides = true;
+							return;
+						}
+						if (marav.Nombre == "Proyecto Manhattan")
+						{
+							this.PManhattan = true;
+							return;
+						}
+						if (marav.Nombre == "Puerta de Brandemburgo")
+						{
+							this.Brandemburgo = true;
+							return;
+						}
+						if (marav.Nombre == "Stonehenge")
+						{
+							this.Stonehenge = true;
+							return;
+						}
+						if (marav.Nombre == "Taj Mahal")
+						{
+							this.TajMahal = true;
+							return;
+						}
+						if (marav.Nombre == "Templo de Artemisa")
+						{
+							ciud.TemploArtemis();
+							return;
+						}
+						if (marav.Nombre == "Torre Eiffel")
+						{
+							this.Eiffel = true;
+							return;
+						}
+						if (marav.Nombre == "Torre Inclinada de Pisa")
+						{
+							this.TorreInclinada = true;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Token: 0x06000183 RID: 387 RVA: 0x0001B038 File Offset: 0x00019238
+	public void ResetListaEspera(Technology t)
+	{
+		this.researching = null;
+		this.VaciarListaEspera();
+		this.AddTechListaEspera(t);
+		this.CheckTecRequiereListaDeEspera();
+		this.researching = this.ListaDeEspera[this.listaDeEsperaMax - 1];
+		this.ListaDeEspera[this.listaDeEsperaMax - 1] = null;
+		this.listaDeEsperaMax--;
+	}
+
+	// Token: 0x06000184 RID: 388 RVA: 0x0001B094 File Offset: 0x00019294
+	private void AddTechListaEspera(Technology t)
+	{
+		if (t != this.researching)
+		{
+			this.ListaDeEspera[this.listaDeEsperaMax] = t;
+			this.listaDeEsperaMax++;
+			for (int i = 0; i < t.Requiere.Length; i++)
+			{
+				if (!this.IsTechEnListaEspera(t.Requiere[i]) && !this.IsTechEnListaTecnologías(t.Requiere[i]))
+				{
+					this.AddTechListaEspera(t.Requiere[i]);
+				}
+			}
+		}
+	}
+
+	// Token: 0x06000185 RID: 389 RVA: 0x0001B10C File Offset: 0x0001930C
+	public bool IsTechEnListaEspera(Technology t)
+	{
+		bool flag = false;
+		for (int i = 0; i < this.listaDeEsperaMax; i++)
+		{
+			if (t == this.ListaDeEspera[i])
+			{
+				flag = true;
+			}
+		}
+		return flag;
+	}
+
+	// Token: 0x06000186 RID: 390 RVA: 0x0001B140 File Offset: 0x00019340
+	public bool IsTechEnListaTecnologías(Technology t)
+	{
+		bool flag = false;
+		for (int i = 0; i < this.Researched.Length; i++)
+		{
+			if (t == this.Researched[i])
+			{
+				flag = true;
+			}
+		}
+		return flag;
+	}
+
+	// Token: 0x06000187 RID: 391 RVA: 0x0001B178 File Offset: 0x00019378
+	public void VaciarListaEspera()
+	{
+		for (int i = this.listaDeEsperaMax; i > 0; i--)
+		{
+			this.ListaDeEspera[i] = null;
+			this.listaDeEsperaMax--;
+		}
+	}
+
+	// Token: 0x06000188 RID: 392 RVA: 0x0001B1B0 File Offset: 0x000193B0
+	public int TurnosLeftTec(Technology t)
+	{
+		int num = 0;
+		float num2;
+		if (this.FindTec(t) == 99)
+		{
+			num2 = 0f;
+		}
+		else
+		{
+			num2 = this.Tecs[this.FindTec(t)].done;
+		}
+		while (num2 < (float)t.Coste)
+		{
+			num++;
+			num2 += this.CienciaPorTurno;
+		}
+		return num;
+	}
+
+	// Token: 0x06000189 RID: 393 RVA: 0x0001B204 File Offset: 0x00019404
+	private void AddTec(Technology t)
+	{
+		bool flag = true;
+		for (int i = 0; i < this.Tecs.Length; i++)
+		{
+			if (t == this.Tecs[i].tec)
+			{
+				flag = false;
+			}
+		}
+		if (flag)
+		{
+			int num = 0;
+			while (num < this.Tecs.Length && flag)
+			{
+				if (this.Tecs[num].tec == null)
+				{
+					this.Tecs[num].tec = t;
+					this.Tecs[num].done = 0f;
+					flag = false;
+				}
+				num++;
+			}
+		}
+	}
+
+	// Token: 0x0600018A RID: 394 RVA: 0x0001B2A0 File Offset: 0x000194A0
+	private void RemoveTec(Technology t)
+	{
+		for (int i = 0; i < this.Tecs.Length; i++)
+		{
+			if (t == this.Tecs[i].tec)
+			{
+				this.Tecs[i].tec = null;
+				this.Tecs[i].done = 0f;
+			}
+		}
+		this.OrganiseTec(t);
+	}
+
+	// Token: 0x0600018B RID: 395 RVA: 0x0001B308 File Offset: 0x00019508
+	private void OrganiseTec(Technology t)
+	{
+		bool flag = false;
+		int num = 0;
+		while (num + 1 < this.Tecs.Length && !flag)
+		{
+			if (this.Tecs[num].tec == null && this.Tecs[num + 1].tec != null)
+			{
+				while (num + 1 < this.Tecs.Length)
+				{
+					this.Tecs[num] = this.Tecs[num + 1];
+					num++;
+				}
+				this.Tecs[num].tec = null;
+				flag = true;
+			}
+			num++;
+		}
+		if (flag)
+		{
+			this.OrganiseTec(t);
+		}
+	}
+
+	// Token: 0x0600018C RID: 396 RVA: 0x0001B3B4 File Offset: 0x000195B4
+	private int FindTec(Technology t)
+	{
+		bool flag = true;
+		int num = 0;
+		while (num < this.Tecs.Length && flag)
+		{
+			if (t == this.Tecs[num].tec)
+			{
+				flag = false;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (flag)
+		{
+			return 99;
+		}
+		return num;
+	}
+
+	// Token: 0x0600018D RID: 397 RVA: 0x0001B400 File Offset: 0x00019600
+	public float ScienceBar()
+	{
+		if (this.FindTec(this.researching) > this.Tecs.Length)
+		{
+			return 0f;
+		}
+		if (this.Tecs[this.FindTec(this.researching)].done >= (float)this.researching.Coste)
+		{
+			return 0f;
+		}
+		return this.Tecs[this.FindTec(this.researching)].done / (float)this.researching.Coste;
+	}
+
+	// Token: 0x0600018E RID: 398 RVA: 0x0001B484 File Offset: 0x00019684
+	private void CheckTecRequiereListaDeEspera()
+	{
+		int num = 0;
+		bool flag = false;
+		while (num < this.listaDeEsperaMax - 1 && !flag)
+		{
+			bool flag2 = true;
+			for (int i = 0; i < this.ListaDeEspera[num].Requiere.Length; i++)
+			{
+				int num2 = 0;
+				while (num2 < this.Researched.Length && !flag)
+				{
+					if (this.Researched[num2] == this.ListaDeEspera[num].Requiere[i])
+					{
+						flag = true;
+					}
+					num2++;
+				}
+				if (flag)
+				{
+					flag = false;
+				}
+				else
+				{
+					flag2 = false;
+				}
+			}
+			if (flag2)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		Technology technology = this.ListaDeEspera[this.listaDeEsperaMax - 1];
+		this.ListaDeEspera[this.listaDeEsperaMax - 1] = this.ListaDeEspera[num];
+		this.ListaDeEspera[num] = technology;
+	}
+
+	// Token: 0x0600018F RID: 399 RVA: 0x0001B548 File Offset: 0x00019748
+	public void CheckifDead()
+	{
+		if (this.maxCiudad == 0 && this.maxUnidad == 0)
+		{
+			if (this.RealPlayer && GameManager.Instance.onlyOneRealPlayer)
+			{
+				GameManager.Instance.AIStop = true;
+				GameManager.Instance.myVictoryManager.EliminatedLastRealPlayer(this.lider);
+			}
+			GameManager.Instance.DeletePlayer(base.GetComponent<Jugador>());
+		}
+	}
+
+	// Token: 0x06000190 RID: 400 RVA: 0x0001B5AC File Offset: 0x000197AC
+	public void StartTurn(bool auxe = false, bool cargado = false)
+	{
+		if (!GameManager.Instance.AutoSkip && !GameManager.Instance.onlyOneRealPlayer && this.RealPlayer)
+		{
+			GlobalMessage.Instance.Message("Turno de " + this.Nombre);
+		}
+		GameManager.Instance.ManageWaitingForPlayers(this.RealPlayer);
+		this.CheckifDead();
+		if (this.TurnosSuperSaiyan > 0)
+		{
+			this.TurnosSuperSaiyan--;
+			if (this.TurnosSuperSaiyan == 0)
+			{
+				this.AllUnitsCheckPelo();
+			}
+		}
+		this.GilgameshBonus = GameManager.Instance.GilgameshFriendBonus(this);
+		this.DineroPorTurno = 4;
+		this.CienciaPorTurno = 0f;
+		this.CulturaPorTurno = 0f;
+		this.TurismoPorTurno = 0f;
+		this.FelicidadPorTurno = 0f;
+		this.InfluenciaPorTurno = 2f;
+		this.FePorTurno = 0f;
+		GameManager.Instance.CheckPactsJug();
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (!auxe)
+			{
+				this.Ciudades[i].ExpandReligion();
+			}
+		}
+		for (int j = 0; j < this.maxCiudad; j++)
+		{
+			this.Ciudades[j].StartTurn(auxe);
+		}
+		if (this.lider == GameSettings.Lideres.Saladin)
+		{
+			int num = GameManager.Instance.BonusSaladino();
+			this.CienciaPorTurno += (float)(num * 5);
+			this.CulturaPorTurno += (float)(num * 5);
+			this.InfluenciaPorTurno += (float)(num * 5);
+			this.FePorTurno += (float)(num * 5);
+		}
+		if (this.lider == GameSettings.Lideres.Rubius)
+		{
+			for (int k = 0; k < this.maxUnidad; k++)
+			{
+				if (this.Unidades[k].Tipo == Unidad.TipoUnidad.Streamer)
+				{
+					this.TurismoPorTurno += 1f;
+				}
+				else if (this.Unidades[k].Tipo == Unidad.TipoUnidad.Youtuber)
+				{
+					this.CulturaPorTurno += 2f;
+				}
+			}
+		}
+		ReligionManager.Instance.CheckIfVictory();
+		if (this.RealPlayer)
+		{
+			Tablero.Instance.ShowResorces(this.veHierro, this.veCarbon, this.vePetroleo, this.veUranio);
+		}
+		this.OrganiseUnits(false);
+		this.CienciaPorTurno *= this.CienciaMultiplier();
+		this.CulturaPorTurno *= this.CulturaMultiplier();
+		this.InfluenciaPorTurno += GameManager.Instance.InfluenciaPorRelaciones();
+		this.InfluenciaPorTurno *= this.InfluenciaMultiplier();
+		GameManager.Instance.CheckMyInfluencias();
+		if (this.InfluenciaTotal < 0f)
+		{
+			this.InfluenciaTotal = 0f;
+		}
+		this.DineroPorTurno = (int)((float)this.DineroPorTurno * this.OroMultiplier());
+		this.TurismoPorTurno += (float)CultureManager.Instance.TourismPerConnections(this);
+		this.TurismoPorTurno = (float)((int)(this.TurismoPorTurno * this.TurismoMultiplier()));
+		this.FePorTurno *= this.FeMultiplier();
+		if (this.TurnosUntilDeclarinWar > 0)
+		{
+			this.TurnosUntilDeclarinWar--;
+		}
+		for (int l = 0; l < this.maxUnidad; l++)
+		{
+			this.Unidades[l].CheckVision(auxe);
+			if (!auxe && !cargado)
+			{
+				this.Unidades[l].ResetMovement();
+			}
+		}
+		if (this.maxCiudad > 0 && !auxe)
+		{
+			if (this.lider != GameSettings.Lideres.Daenerys)
+			{
+				this.DineroPorTurno -= this.maxUnidad;
+			}
+			if (this.MiCarbon < 0)
+			{
+				int num2 = this.MiCarbon * -1;
+				this.DineroPorTurno -= num2 * 10;
+			}
+			if (this.MiHierro < 0)
+			{
+				int num3 = this.MiHierro * -1;
+				this.DineroPorTurno -= num3 * 10;
+			}
+			if (this.MiPetroleo < 0)
+			{
+				int num4 = this.MiPetroleo * -1;
+				this.DineroPorTurno -= num4 * 10;
+			}
+			if (this.MisCaballos < 0)
+			{
+				int num5 = this.MisCaballos * -1;
+				this.DineroPorTurno -= num5 * 10;
+			}
+			if (this.MiUranio < 0)
+			{
+				int num6 = this.MiUranio * -1;
+				this.DineroPorTurno -= num6 * 10;
+			}
+		}
+		if (!auxe)
+		{
+			this.OroTotal += this.DineroPorTurno;
+		}
+		if (this.OroTotal < 0 && !auxe)
+		{
+			this.CienciaPorTurno += (float)this.OroTotal;
+			if (this.CienciaPorTurno <= 1f)
+			{
+				this.CienciaPorTurno = 1f;
+			}
+			this.Bancarrota = true;
+			this.OroTotal = 0;
+			TutorialManager.Instance.ShowPopup(23);
+		}
+		else
+		{
+			this.Bancarrota = false;
+		}
+		if (!auxe)
+		{
+			bool flag = false;
+			this.CulturaTotal += this.CulturaPorTurno;
+			this.InfluenciaTotal += this.InfluenciaPorTurno;
+			if (this.InfluenciaTotal < 0f)
+			{
+				this.InfluenciaTotal = 0f;
+			}
+			this.TurismoTotal += this.TurismoPorTurno;
+			this.FeTotal += this.FePorTurno;
+			if (this.TurnLeftEpocaDorada > 0)
+			{
+				this.TurnLeftEpocaDorada--;
+				if (this.TurnLeftEpocaDorada == 0)
+				{
+					this.GoldenAgeMultiplier = 0f;
+					this.NivelEpocaDorada = 0;
+				}
+			}
+			else if (this.TurnLeftEpocaDorada == -1)
+			{
+				this.FelicidadTotal += this.FelicidadPorTurno;
+				if (this.FelicidadTotal >= this.FelicidadObjetivo)
+				{
+					GoldenAgeManager.Instance.ReachedGoldenAge(base.GetComponent<Jugador>());
+				}
+				else if (this.FelicidadTotal < 0f)
+				{
+					this.FelicidadTotal = 0f;
+				}
+			}
+			else
+			{
+				flag = true;
+				if (this.RealPlayer)
+				{
+					GameManager.Instance.NewGoldenAgeMessage(2);
+				}
+				else
+				{
+					MainAIManager.Instance.chooseEpocaDorada();
+				}
+			}
+			if (!flag)
+			{
+				CultureManager.Instance.CheckCultureMessage();
+			}
+		}
+		if (this.researching != null && !auxe)
+		{
+			if (this.FindTec(this.researching) == 99)
+			{
+				this.AddTec(this.researching);
+			}
+			Jugador.Techs[] tecs = this.Tecs;
+			int num7 = this.FindTec(this.researching);
+			tecs[num7].done = tecs[num7].done + this.CienciaPorTurno;
+			if (this.Tecs[this.FindTec(this.researching)].done >= (float)this.researching.Coste)
+			{
+				this.TecInvestigated(this.researching);
+			}
+		}
+		GameManager.Instance.FormalWarChecker();
+		this.CheckExtraResources();
+		this.Turno = true;
+		for (int m = 0; m < this.maxUnidad; m++)
+		{
+			this.Unidades[m].fortified = false;
+		}
+		this.CheckJugsAConectar();
+		if (this.RealPlayer)
+		{
+			this.ActivateUnit(this.Unidades[0], 0);
+		}
+		GameManager.Instance.ChangeUIPlayer(this);
+		if (this.maxUnidad <= 0 && this.maxCiudad > 0 && !this.RealPlayer)
+		{
+			GameManager.Instance.SelectCiudad(this.Ciudades[0], this.Ciudades[0].posX, this.Ciudades[0].posY);
+		}
+		this.CheckIfHasDeadLeaders();
+		GameManager.Instance.NegociacionesIsThereAvisos();
+		ReligionManager.Instance.ActualizeAreaReligions();
+		if (this.lider == GameSettings.Lideres.Bingo && this.BingoBonus)
+		{
+			GameManager.Instance.FreeTech(5);
+			this.BingoBonus = false;
+		}
+		if (this.lider == GameSettings.Lideres.Che)
+		{
+			GameManager.Instance.CheckCheGuevaraBonus();
+		}
+		if (this.lider == GameSettings.Lideres.Monopoly && this.RealPlayer)
+		{
+			GameManager.Instance.ShowMonopolyBuy();
+		}
+		if (!this.RealPlayer)
+		{
+			GameManager.Instance.DeSelectCiudad();
+			MainAIManager.Instance.checkRel();
+			MainAIManager.Instance.AIDiplomacyCheck(true);
+			MainAIManager.Instance.ManageAllUnits();
+			base.StartCoroutine(this.AIUnCockBlocker());
+		}
+	}
+
+	// Token: 0x06000191 RID: 401 RVA: 0x0001BD40 File Offset: 0x00019F40
+	public void TecInvestigated(Technology tec)
+	{
+		this.Researched[this.maxRes] = tec;
+		this.maxRes++;
+		this.AddUnitsAndBuildings(tec);
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null)
+			{
+				this.Ciudades[i].Vida += 2f;
+			}
+		}
+		if (tec.permiteEmbarcar)
+		{
+			this.navegar++;
+		}
+		if (tec.mejora != Tablero.Mejora.Nada)
+		{
+			if (tec.mejora == Tablero.Mejora.Mina)
+			{
+				this.canMina = true;
+			}
+			if (tec.mejora == Tablero.Mejora.Aserradero)
+			{
+				this.canAserr = true;
+			}
+			if (tec.mejora == Tablero.Mejora.Pastizal)
+			{
+				this.canPastiz = true;
+			}
+			if (tec.mejora == Tablero.Mejora.Refineria)
+			{
+				this.canRefin = true;
+			}
+			if (tec.mejora == Tablero.Mejora.Carretera)
+			{
+				this.canCarre = true;
+				if (!this.RealPlayer)
+				{
+					MainAIManager.Instance.InitializeRoads();
+				}
+			}
+		}
+		if (tec.elemento != Tablero.ElementoExtra.Nada)
+		{
+			if (tec.elemento == Tablero.ElementoExtra.Hierro)
+			{
+				this.veHierro = true;
+			}
+			if (tec.elemento == Tablero.ElementoExtra.Carbon)
+			{
+				this.veCarbon = true;
+			}
+			if (tec.elemento == Tablero.ElementoExtra.Petroleo)
+			{
+				this.vePetroleo = true;
+			}
+			if (tec.elemento == Tablero.ElementoExtra.Uranio)
+			{
+				this.veUranio = true;
+			}
+		}
+		if (tec.TecnologiaFinal)
+		{
+			this.FinTecnologias = true;
+		}
+		this.RemoveTec(tec);
+		tec = null;
+		if (!this.RealPlayer)
+		{
+			if (this.listaDeEsperaMax > 0)
+			{
+				this.VaciarListaEspera();
+			}
+			this.researching = null;
+			return;
+		}
+		if (this.listaDeEsperaMax > 0)
+		{
+			this.CheckTecRequiereListaDeEspera();
+			this.researching = this.ListaDeEspera[this.listaDeEsperaMax - 1];
+			this.ListaDeEspera[this.listaDeEsperaMax - 1] = null;
+			this.listaDeEsperaMax--;
+			return;
+		}
+		this.researching = null;
+	}
+
+	// Token: 0x06000192 RID: 402 RVA: 0x0001BEF4 File Offset: 0x0001A0F4
+	public bool TengoUnidadAhi(int posX, int posY)
+	{
+		bool flag = false;
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i] != null && this.Unidades[i].posX == posX && this.Unidades[i].posY == posY)
+			{
+				flag = true;
+			}
+		}
+		return flag;
+	}
+
+	// Token: 0x06000193 RID: 403 RVA: 0x0001BF48 File Offset: 0x0001A148
+	public Ciudad TengoCiudadAhi(int posX, int posY)
+	{
+		Ciudad ciudad = null;
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null && this.Ciudades[i].posX == posX && this.Ciudades[i].posY == posY)
+			{
+				ciudad = this.Ciudades[i];
+			}
+		}
+		return ciudad;
+	}
+
+	// Token: 0x06000194 RID: 404 RVA: 0x0001BFA4 File Offset: 0x0001A1A4
+	public Unidad UnidadDeCoords(int posX, int posY)
+	{
+		Unidad unidad = null;
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i] != null && this.Unidades[i].posX == posX && this.Unidades[i].posY == posY)
+			{
+				unidad = this.Unidades[i];
+			}
+		}
+		return unidad;
+	}
+
+	// Token: 0x06000195 RID: 405 RVA: 0x0001C000 File Offset: 0x0001A200
+	public void CheckExtraResources()
+	{
+		this.OrganiseUnits(false);
+		this.MiHierro = 0;
+		this.MiPetroleo = 0;
+		this.MiCarbon = 0;
+		this.MisCaballos = 0;
+		this.MiUranio = 0;
+		if (this.PManhattan)
+		{
+			this.MiUranio = 2;
+		}
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			this.MiHierro += this.Ciudades[i].CiudHierro();
+			this.MiPetroleo += this.Ciudades[i].CiudPetroleo();
+			this.MiCarbon += this.Ciudades[i].CiudCarbon();
+			this.MisCaballos += this.Ciudades[i].CiudCaballos();
+			this.MiUranio += this.Ciudades[i].CiudUranio();
+		}
+		for (int j = 0; j < this.maxUnidad; j++)
+		{
+			if (this.Unidades[j].CuestaExtra != Tablero.ElementoExtra.Nada)
+			{
+				if (this.Unidades[j].CuestaExtra == Tablero.ElementoExtra.Hierro)
+				{
+					this.MiHierro--;
+				}
+				if (this.Unidades[j].CuestaExtra == Tablero.ElementoExtra.Caballos)
+				{
+					this.MisCaballos--;
+				}
+				if (this.Unidades[j].CuestaExtra == Tablero.ElementoExtra.Petroleo)
+				{
+					this.MiPetroleo--;
+				}
+				if (this.Unidades[j].CuestaExtra == Tablero.ElementoExtra.Carbon)
+				{
+					this.MiCarbon--;
+				}
+				if (this.Unidades[j].CuestaExtra == Tablero.ElementoExtra.Uranio)
+				{
+					this.MiUranio--;
+				}
+			}
+		}
+	}
+
+	// Token: 0x06000196 RID: 406 RVA: 0x0001C1A0 File Offset: 0x0001A3A0
+	private void AddUnitsAndBuildings(Technology t)
+	{
+		Building building = null;
+		int i = 0;
+		int j = 0;
+		bool flag = false;
+		while (j < this.MyEdifs.Length)
+		{
+			if (flag)
+			{
+				break;
+			}
+			if (this.MyEdifs[j] == null)
+			{
+				flag = true;
+			}
+			else
+			{
+				j++;
+			}
+		}
+		while (i < t.Edificios.Length && flag)
+		{
+			if (t.Edificios[i].Lider == GameSettings.Lideres.None)
+			{
+				if (t.Edificios[i] != building)
+				{
+					bool flag2 = false;
+					this.MyEdifs[j] = t.Edificios[i];
+					while (j < this.MyEdifs.Length)
+					{
+						if (flag2)
+						{
+							break;
+						}
+						if (this.MyEdifs[j] == null)
+						{
+							flag2 = true;
+						}
+						else
+						{
+							j++;
+						}
+					}
+				}
+			}
+			else if (t.Edificios[i].Lider == this.lider)
+			{
+				bool flag3 = false;
+				this.MyEdifs[j] = t.Edificios[i];
+				while (j < this.MyEdifs.Length && !flag3)
+				{
+					if (this.MyEdifs[j] == null)
+					{
+						flag3 = true;
+					}
+					else
+					{
+						j++;
+					}
+				}
+				building = t.Edificios[i].Sustituye;
+			}
+			i++;
+		}
+		UnitScriptable unitScriptable = null;
+		for (i = 0; i < t.Unidades.Length; i++)
+		{
+			if (t.Unidades[i].Lider == GameSettings.Lideres.None && t.Unidades[i] != unitScriptable)
+			{
+				this.CanUnit[this.maxUIUnidad] = t.Unidades[i];
+				this.maxUIUnidad++;
+			}
+			else if (t.Unidades[i].Lider == this.lider)
+			{
+				this.CanUnit[this.maxUIUnidad] = t.Unidades[i];
+				this.maxUIUnidad++;
+				unitScriptable = t.Unidades[i].Sustituye;
+			}
+		}
+		this.ManageUnitTipes();
+		for (i = 0; i < t.Maravillas.Length; i++)
+		{
+			if (!GameManager.Instance.IsMaravDone(t.Maravillas[i]))
+			{
+				j = 0;
+				flag = false;
+				while (j < this.MyMaravillas.Length && !flag)
+				{
+					if (this.MyMaravillas[j] == null)
+					{
+						flag = true;
+					}
+					else
+					{
+						j++;
+					}
+				}
+				this.MyMaravillas[j] = t.Maravillas[i];
+			}
+		}
+	}
+
+	// Token: 0x06000197 RID: 407 RVA: 0x0001C3D0 File Offset: 0x0001A5D0
+	public void CheckIfHasDeadLeaders()
+	{
+		if (this.maxDeadLeaders >= 0)
+		{
+			if (this.DeadLeaders[this.maxDeadLeaders] != null)
+			{
+				GameManager.Instance.DeadLeaderMessage(this.DeadLeaders[this.maxDeadLeaders], this.DeadLeadersNames[this.maxDeadLeaders]);
+			}
+			this.maxDeadLeaders--;
+		}
+	}
+
+	// Token: 0x06000198 RID: 408 RVA: 0x0001C430 File Offset: 0x0001A630
+	public bool CheckIfHasCapital()
+	{
+		bool flag = false;
+		int num = 0;
+		while (!flag && num < this.maxCiudad)
+		{
+			if (this.Ciudades[num].Capital && this.Ciudades[num].OgPlayer == this)
+			{
+				flag = true;
+			}
+			num++;
+		}
+		return flag;
+	}
+
+	// Token: 0x06000199 RID: 409 RVA: 0x0001C47C File Offset: 0x0001A67C
+	public bool canCreateReligion()
+	{
+		bool flag = false;
+		int num = 0;
+		while (num < this.maxCiudad && !flag)
+		{
+			if (this.Ciudades[num].Capital && this.Ciudades[num].OgPlayer == this.Ciudades[num].myPlayer && this.Ciudades[num].mainReligion() == -1)
+			{
+				flag = true;
+			}
+			num++;
+		}
+		return flag;
+	}
+
+	// Token: 0x0600019A RID: 410 RVA: 0x0001C4E4 File Offset: 0x0001A6E4
+	public void CreateRel(int pos)
+	{
+		bool flag = false;
+		int num = 0;
+		while (num < this.maxCiudad && !flag)
+		{
+			if (this.Ciudades[num].Capital && this.Ciudades[num].OgPlayer == this.Ciudades[num].myPlayer)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (flag)
+		{
+			this.Ciudades[num].AddToRel(pos, 100);
+			this.Ciudades[num].ManageReligions();
+		}
+	}
+
+	// Token: 0x0600019B RID: 411 RVA: 0x0001C55C File Offset: 0x0001A75C
+	public void ReturnCoordsCiud(string nom, out int x, out int y)
+	{
+		x = -1;
+		y = -1;
+		int num = 0;
+		bool flag = false;
+		while (!flag && num < this.maxCiudad)
+		{
+			if (this.Ciudades[num].Nombre == nom)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (flag)
+		{
+			x = this.Ciudades[num].posX;
+			y = this.Ciudades[num].posY;
+		}
+	}
+
+	// Token: 0x0600019C RID: 412 RVA: 0x0001C5C0 File Offset: 0x0001A7C0
+	public int getCiudadesRel(int r)
+	{
+		int num = 0;
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null && this.Ciudades[i].myReligionThisTurn == r)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x0600019D RID: 413 RVA: 0x0001C605 File Offset: 0x0001A805
+	public void AddJugAConectar(int a, int b)
+	{
+		this.XjugsAConectar[this.jugsAConectar] = a;
+		this.YjugsAConectar[this.jugsAConectar] = b;
+		this.jugsAConectar++;
+	}
+
+	// Token: 0x0600019E RID: 414 RVA: 0x0001C634 File Offset: 0x0001A834
+	private void CheckJugsAConectar()
+	{
+		if (this.jugsAConectar > 0)
+		{
+			while (this.jugsAConectar > 0)
+			{
+				this.jugsAConectar--;
+				GameManager.Instance.Connect2Players(this.XjugsAConectar[this.jugsAConectar], this.YjugsAConectar[this.jugsAConectar]);
+			}
+		}
+	}
+
+	// Token: 0x0600019F RID: 415 RVA: 0x0001C688 File Offset: 0x0001A888
+	public void AddFuerzaPact(int fuer)
+	{
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			this.Unidades[i].PactFuerza += fuer;
+		}
+	}
+
+	// Token: 0x060001A0 RID: 416 RVA: 0x0001C6BC File Offset: 0x0001A8BC
+	public void AddBuildPact(int builds)
+	{
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i].Tipo == Unidad.TipoUnidad.Trabajador)
+			{
+				this.Unidades[i].PactBuildThings += builds;
+			}
+		}
+	}
+
+	// Token: 0x060001A1 RID: 417 RVA: 0x0001C700 File Offset: 0x0001A900
+	public int RemapFuerzaPact()
+	{
+		int fuerzaPact = GameManager.Instance.GetFuerzaPact(this);
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			this.Unidades[i].PactFuerza = fuerzaPact;
+		}
+		return fuerzaPact;
+	}
+
+	// Token: 0x060001A2 RID: 418 RVA: 0x0001C73C File Offset: 0x0001A93C
+	public int AsgoreBonus()
+	{
+		int num = 0;
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i].myPlayer != this)
+			{
+				num++;
+			}
+		}
+		return num * 3;
+	}
+
+	// Token: 0x060001A3 RID: 419 RVA: 0x0001C778 File Offset: 0x0001A978
+	public float CapitanPeruBonus(int x, int y)
+	{
+		int i = 0;
+		bool flag = false;
+		while (i < this.maxCiudad)
+		{
+			if (this.Ciudades[i].PeruBonus(x, y))
+			{
+				flag = true;
+			}
+			i++;
+		}
+		if (flag)
+		{
+			return 1.5f;
+		}
+		return 1f;
+	}
+
+	// Token: 0x060001A4 RID: 420 RVA: 0x0001C7BC File Offset: 0x0001A9BC
+	private void CheckBowserDamage()
+	{
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			this.Unidades[i].CheckBowserDamage();
+		}
+	}
+
+	// Token: 0x060001A5 RID: 421 RVA: 0x0001C7E8 File Offset: 0x0001A9E8
+	private float getCelestiaBonus()
+	{
+		int num = 0;
+		bool flag = false;
+		while (num < GameManager.Instance.jugadores.Length && !flag)
+		{
+			if (GameManager.Instance.ReturnRelation(this, GameManager.Instance.jugadores[num]) == RelationshipManager.RelationStatus.Guerra)
+			{
+				flag = true;
+			}
+			num++;
+		}
+		if (flag)
+		{
+			return -0.05f;
+		}
+		return 0.25f;
+	}
+
+	// Token: 0x060001A6 RID: 422 RVA: 0x0001C83C File Offset: 0x0001AA3C
+	public int myTheoreticalRel()
+	{
+		int num = 0;
+		bool flag = false;
+		while (!flag && num < GameManager.Instance.jugadores.Length)
+		{
+			if (this == GameManager.Instance.jugadores[num])
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x060001A7 RID: 423 RVA: 0x0001C880 File Offset: 0x0001AA80
+	public int BonusParaSaladino(int jug)
+	{
+		int num = 0;
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null && this.Ciudades[i].myReligionThisTurn == jug)
+			{
+				num++;
+			}
+		}
+		return num;
+	}
+
+	// Token: 0x060001A8 RID: 424 RVA: 0x0001C8C8 File Offset: 0x0001AAC8
+	private void AllUnitsCheckPelo()
+	{
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			this.Unidades[i].CheckPelo();
+		}
+	}
+
+	// Token: 0x060001A9 RID: 425 RVA: 0x0001C8F3 File Offset: 0x0001AAF3
+	public void SuperSaiyan()
+	{
+		if (this.lider == GameSettings.Lideres.Goku)
+		{
+			this.TurnosSuperSaiyan = 5;
+			this.AllUnitsCheckPelo();
+			this.Unidades[this.turnUnit].Move(5);
+		}
+	}
+
+	// Token: 0x060001AA RID: 426 RVA: 0x0001C920 File Offset: 0x0001AB20
+	public void ShowAllCiudadsAreas()
+	{
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null)
+			{
+				this.Ciudades[i].ShowAreas();
+			}
+		}
+	}
+
+	// Token: 0x060001AB RID: 427 RVA: 0x0001C95C File Offset: 0x0001AB5C
+	public void HideAllCiudadsAreas()
+	{
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null)
+			{
+				this.Ciudades[i].HideAreas(false);
+			}
+		}
+	}
+
+	// Token: 0x060001AC RID: 428 RVA: 0x0001C998 File Offset: 0x0001AB98
+	public Unidad GetTurnUnit()
+	{
+		return this.Unidades[this.turnUnit];
+	}
+
+	// Token: 0x060001AD RID: 429 RVA: 0x0001C9A8 File Offset: 0x0001ABA8
+	public void PosicionAproximada(out int x, out int y)
+	{
+		x = 0;
+		y = 0;
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			x += this.Ciudades[i].posX;
+			y += this.Ciudades[i].posY;
+		}
+		if (this.maxCiudad > 0)
+		{
+			x /= this.maxCiudad;
+			y /= this.maxCiudad;
+		}
+	}
+
+	// Token: 0x060001AE RID: 430 RVA: 0x0001CA10 File Offset: 0x0001AC10
+	public float FuerzaGeneral()
+	{
+		this.OrganiseUnits(false);
+		float num = 0f;
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			num += this.Unidades[i].FuerzaReal();
+		}
+		return num;
+	}
+
+	// Token: 0x060001AF RID: 431 RVA: 0x0001CA4C File Offset: 0x0001AC4C
+	public bool IsInMyTerritory(int x, int y)
+	{
+		bool flag = false;
+		int num = 0;
+		while (num < this.maxCiudad && !flag)
+		{
+			int num2 = 1;
+			if (this.Ciudades[num].Ciudadanos >= 9)
+			{
+				num2++;
+			}
+			if (this.Ciudades[num].Ciudadanos >= 25)
+			{
+				num2++;
+			}
+			int num3 = this.Ciudades[num].posX - x;
+			if (num3 < 0)
+			{
+				num3 *= -1;
+			}
+			if (num3 <= num2)
+			{
+				num3 = this.Ciudades[num].posY - y;
+				if (num3 < 0)
+				{
+					num3 *= -1;
+				}
+				flag = num3 <= num2;
+			}
+			num++;
+		}
+		return flag;
+	}
+
+	// Token: 0x060001B0 RID: 432 RVA: 0x0001CAD8 File Offset: 0x0001ACD8
+	public bool AmICoocked()
+	{
+		if (this.lider == GameSettings.Lideres.NightKing)
+		{
+			return false;
+		}
+		if (this.maxCiudad > 0)
+		{
+			return false;
+		}
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i] != null && this.Unidades[i].Tipo == Unidad.TipoUnidad.Colono)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Token: 0x060001B1 RID: 433 RVA: 0x0001CB31 File Offset: 0x0001AD31
+	private IEnumerator AIUnCockBlocker()
+	{
+		yield return new WaitForSeconds(8f);
+		MainAIManager.Instance.checkScience();
+		MainAIManager.Instance.checkCulture();
+		for (int i = 0; i < this.maxUnidad; i++)
+		{
+			if (this.Unidades[i] != null)
+			{
+				this.Unidades[i].Heal();
+			}
+			else
+			{
+				this.OrganiseUnits(false);
+			}
+		}
+		this.Turno = false;
+		if (GameManager.Instance.BowserInMatch)
+		{
+			this.CheckBowserDamage();
+		}
+		GameManager.Instance.EmergencyScienceTreeShutdown();
+		GameManager.Instance.NextTurn(false, 0, false);
+		yield break;
+	}
+
+	// Token: 0x060001B2 RID: 434 RVA: 0x0001CB40 File Offset: 0x0001AD40
+	public void NightKingDeath()
+	{
+		for (int i = this.maxUnidad - 1; i >= 0; i--)
+		{
+			if (this.Unidades[i] != null)
+			{
+				this.Unidades[i].VidaLeft = 0f;
+				this.Unidades[i].CheckIfDead(null);
+			}
+		}
+	}
+
+	// Token: 0x060001B3 RID: 435 RVA: 0x0001CB90 File Offset: 0x0001AD90
+	public void HideMonopoly()
+	{
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null)
+			{
+				this.Ciudades[i].ChangeMonopoly(false);
+			}
+		}
+	}
+
+	// Token: 0x060001B4 RID: 436 RVA: 0x0001CBCC File Offset: 0x0001ADCC
+	public void ShowMonopoly()
+	{
+		for (int i = 0; i < this.maxCiudad; i++)
+		{
+			if (this.Ciudades[i] != null)
+			{
+				this.Ciudades[i].ChangeMonopoly(true);
+			}
+		}
+	}
+
+	// Token: 0x04000189 RID: 393
+	public bool TorreInclinada;
+
+	// Token: 0x0400018A RID: 394
+	public bool Piramides;
+
+	// Token: 0x0400018B RID: 395
+	public bool Brandemburgo;
+
+	// Token: 0x0400018C RID: 396
+	public bool Stonehenge;
+
+	// Token: 0x0400018D RID: 397
+	public bool TajMahal;
+
+	// Token: 0x0400018E RID: 398
+	public bool EstatuaLibertad;
+
+	// Token: 0x0400018F RID: 399
+	public bool CristoRedentor;
+
+	// Token: 0x04000190 RID: 400
+	public bool NotreDame;
+
+	// Token: 0x04000191 RID: 401
+	public bool Eiffel;
+
+	// Token: 0x04000192 RID: 402
+	public bool Petra;
+
+	// Token: 0x04000193 RID: 403
+	public bool IndiasOrientales;
+
+	// Token: 0x04000194 RID: 404
+	public bool ChichenItza;
+
+	// Token: 0x04000195 RID: 405
+	public bool MachuPichu;
+
+	// Token: 0x04000196 RID: 406
+	public bool PManhattan;
+
+	// Token: 0x04000197 RID: 407
+	public bool BigBen;
+
+	// Token: 0x04000198 RID: 408
+	public string Nombre;
+
+	// Token: 0x04000199 RID: 409
+	public Ciudad[] Ciudades = new Ciudad[100];
+
+	// Token: 0x0400019A RID: 410
+	public int maxCiudad;
+
+	// Token: 0x0400019B RID: 411
+	public string[] CityNameList;
+
+	// Token: 0x0400019C RID: 412
+	public Unidad[] Unidades = new Unidad[300];
+
+	// Token: 0x0400019D RID: 413
+	public int maxUnidad;
+
+	// Token: 0x0400019E RID: 414
+	public GameSettings.Lideres lider;
+
+	// Token: 0x0400019F RID: 415
+	public Color color1;
+
+	// Token: 0x040001A0 RID: 416
+	public Color color2;
+
+	// Token: 0x040001A1 RID: 417
+	public bool Capital;
+
+	// Token: 0x040001A2 RID: 418
+	public Jugador.Techs[] Tecs = new Jugador.Techs[20];
+
+	// Token: 0x040001A3 RID: 419
+	public int PanYCirco;
+
+	// Token: 0x040001A4 RID: 420
+	public bool Bancarrota;
+
+	// Token: 0x040001A5 RID: 421
+	public bool FinTecnologias;
+
+	// Token: 0x040001A6 RID: 422
+	public bool BingoBonus = true;
+
+	// Token: 0x040001A7 RID: 423
+	public bool RealPlayer;
+
+	// Token: 0x040001A8 RID: 424
+	public bool veHierro;
+
+	// Token: 0x040001A9 RID: 425
+	public bool veCarbon;
+
+	// Token: 0x040001AA RID: 426
+	public bool vePetroleo;
+
+	// Token: 0x040001AB RID: 427
+	public bool veUranio;
+
+	// Token: 0x040001AC RID: 428
+	public bool canMina;
+
+	// Token: 0x040001AD RID: 429
+	public bool canAserr;
+
+	// Token: 0x040001AE RID: 430
+	public bool canPastiz;
+
+	// Token: 0x040001AF RID: 431
+	public bool canRefin;
+
+	// Token: 0x040001B0 RID: 432
+	public bool canCarre;
+
+	// Token: 0x040001B1 RID: 433
+	public bool[,] Visión;
+
+	// Token: 0x040001B2 RID: 434
+	public bool todasLasCasillasVisibles;
+
+	// Token: 0x040001B3 RID: 435
+	public int navegar;
+
+	// Token: 0x040001B4 RID: 436
+	public int MiHierro;
+
+	// Token: 0x040001B5 RID: 437
+	public int MisCaballos;
+
+	// Token: 0x040001B6 RID: 438
+	public int MiCarbon;
+
+	// Token: 0x040001B7 RID: 439
+	public int MiPetroleo;
+
+	// Token: 0x040001B8 RID: 440
+	public int MiUranio;
+
+	// Token: 0x040001B9 RID: 441
+	public Building[] MyEdifs = new Building[60];
+
+	// Token: 0x040001BA RID: 442
+	public UnitScriptable[] CanUnit = new UnitScriptable[60];
+
+	// Token: 0x040001BB RID: 443
+	public Maravilla[] MyMaravillas = new Maravilla[25];
+
+	// Token: 0x040001BC RID: 444
+	public int maxUIUnidad;
+
+	// Token: 0x040001BD RID: 445
+	public Technology[] Researched = new Technology[61];
+
+	// Token: 0x040001BE RID: 446
+	public int maxRes;
+
+	// Token: 0x040001BF RID: 447
+	public Jugador.CultBenef[] CultureTree = new Jugador.CultBenef[15];
+
+	// Token: 0x040001C0 RID: 448
+	public Technology researching;
+
+	// Token: 0x040001C1 RID: 449
+	public Technology[] ListaDeEspera = new Technology[61];
+
+	// Token: 0x040001C2 RID: 450
+	public int listaDeEsperaMax;
+
+	// Token: 0x040001C3 RID: 451
+	public bool HasStarted;
+
+	// Token: 0x040001C4 RID: 452
+	public bool Turno;
+
+	// Token: 0x040001C5 RID: 453
+	private int turnUnit;
+
+	// Token: 0x040001C6 RID: 454
+	public int DineroPorTurno;
+
+	// Token: 0x040001C7 RID: 455
+	public int OroTotal;
+
+	// Token: 0x040001C8 RID: 456
+	public float CienciaPorTurno;
+
+	// Token: 0x040001C9 RID: 457
+	public float CulturaPorTurno;
+
+	// Token: 0x040001CA RID: 458
+	public float CulturaTotal;
+
+	// Token: 0x040001CB RID: 459
+	public float TurismoPorTurno;
+
+	// Token: 0x040001CC RID: 460
+	public float TurismoTotal;
+
+	// Token: 0x040001CD RID: 461
+	public float FePorTurno;
+
+	// Token: 0x040001CE RID: 462
+	public float FeTotal;
+
+	// Token: 0x040001CF RID: 463
+	public float InfluenciaPorTurno;
+
+	// Token: 0x040001D0 RID: 464
+	public float InfluenciaTotal;
+
+	// Token: 0x040001D1 RID: 465
+	public float FelicidadPorTurno;
+
+	// Token: 0x040001D2 RID: 466
+	public float FelicidadTotal;
+
+	// Token: 0x040001D3 RID: 467
+	public float FelicidadObjetivo = 100f;
+
+	// Token: 0x040001D4 RID: 468
+	public int NivelEpocaDorada = 1;
+
+	// Token: 0x040001D5 RID: 469
+	public int TurnLeftEpocaDorada = -1;
+
+	// Token: 0x040001D6 RID: 470
+	public float GoldenAgeMultiplier;
+
+	// Token: 0x040001D7 RID: 471
+	public int[] EpocasDoradasHechas = new int[6];
+
+	// Token: 0x040001D8 RID: 472
+	public float GilgameshBonus;
+
+	// Token: 0x040001D9 RID: 473
+	private Sprite[] DeadLeaders = new Sprite[25];
+
+	// Token: 0x040001DA RID: 474
+	private string[] DeadLeadersNames = new string[25];
+
+	// Token: 0x040001DB RID: 475
+	private int maxDeadLeaders = -1;
+
+	// Token: 0x040001DC RID: 476
+	public bool knowsEveryone;
+
+	// Token: 0x040001DD RID: 477
+	private int jugsAConectar;
+
+	// Token: 0x040001DE RID: 478
+	private int[] XjugsAConectar = new int[20];
+
+	// Token: 0x040001DF RID: 479
+	private int[] YjugsAConectar = new int[20];
+
+	// Token: 0x040001E0 RID: 480
+	public int TurnosUntilDeclarinWar;
+
+	// Token: 0x040001E1 RID: 481
+	public int TurnosSuperSaiyan = -1;
+
+	// Token: 0x02000064 RID: 100
+	public struct Techs
+	{
+		// Token: 0x040006B5 RID: 1717
+		public Technology tec;
+
+		// Token: 0x040006B6 RID: 1718
+		public float done;
+	}
+
+	// Token: 0x02000065 RID: 101
+	public enum CultBenef
+	{
+		// Token: 0x040006B8 RID: 1720
+		Nada,
+		// Token: 0x040006B9 RID: 1721
+		Trab1,
+		// Token: 0x040006BA RID: 1722
+		Atack10,
+		// Token: 0x040006BB RID: 1723
+		Atack20,
+		// Token: 0x040006BC RID: 1724
+		Atack30,
+		// Token: 0x040006BD RID: 1725
+		Cien5,
+		// Token: 0x040006BE RID: 1726
+		Cien15,
+		// Token: 0x040006BF RID: 1727
+		Cien10,
+		// Token: 0x040006C0 RID: 1728
+		Cien20,
+		// Token: 0x040006C1 RID: 1729
+		Cul10,
+		// Token: 0x040006C2 RID: 1730
+		Cul5,
+		// Token: 0x040006C3 RID: 1731
+		Cul15,
+		// Token: 0x040006C4 RID: 1732
+		Cul20,
+		// Token: 0x040006C5 RID: 1733
+		Com15,
+		// Token: 0x040006C6 RID: 1734
+		Com30,
+		// Token: 0x040006C7 RID: 1735
+		Oro15,
+		// Token: 0x040006C8 RID: 1736
+		Prod15,
+		// Token: 0x040006C9 RID: 1737
+		Prod30,
+		// Token: 0x040006CA RID: 1738
+		CultGranj,
+		// Token: 0x040006CB RID: 1739
+		CienGran,
+		// Token: 0x040006CC RID: 1740
+		CultMin,
+		// Token: 0x040006CD RID: 1741
+		CienMin,
+		// Token: 0x040006CE RID: 1742
+		TecGrat,
+		// Token: 0x040006CF RID: 1743
+		Recursos2,
+		// Token: 0x040006D0 RID: 1744
+		Mov1,
+		// Token: 0x040006D1 RID: 1745
+		Atack50,
+		// Token: 0x040006D2 RID: 1746
+		Fe5,
+		// Token: 0x040006D3 RID: 1747
+		Fe10,
+		// Token: 0x040006D4 RID: 1748
+		Fe15,
+		// Token: 0x040006D5 RID: 1749
+		Fe20,
+		// Token: 0x040006D6 RID: 1750
+		Inf5,
+		// Token: 0x040006D7 RID: 1751
+		Inf10,
+		// Token: 0x040006D8 RID: 1752
+		Inf15,
+		// Token: 0x040006D9 RID: 1753
+		Inf20,
+		// Token: 0x040006DA RID: 1754
+		Oro10,
+		// Token: 0x040006DB RID: 1755
+		Oro5,
+		// Token: 0x040006DC RID: 1756
+		Oro20,
+		// Token: 0x040006DD RID: 1757
+		VictCult,
+		// Token: 0x040006DE RID: 1758
+		Prod5
+	}
+}

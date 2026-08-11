@@ -1,0 +1,831 @@
+using System;
+using System.IO;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+// Token: 0x02000044 RID: 68
+public class MenuUIManager : MonoBehaviour
+{
+	// Token: 0x060003EB RID: 1003 RVA: 0x00039CB4 File Offset: 0x00037EB4
+	private void Start()
+	{
+		this._titulo.text = "Antiguo";
+		this._desc.text = "Método de generación de mundos por defecto. En la versión base del juego era el único tipo de generador de mapas aleatorios que había. Suele crear mundos bastante aleatorios pero jugables";
+		this._gameSettings.AddLeader(GameSettings.Lideres.None);
+		this.ManageExplainingLeader(0);
+		this.myTranscriptor = base.GetComponent<TranscriptorDePartidas>();
+		this.Everything.SetActive(true);
+		this.Loading.SetActive(false);
+	}
+
+	// Token: 0x060003EC RID: 1004 RVA: 0x00039D18 File Offset: 0x00037F18
+	private void Update()
+	{
+		if (MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.Start)
+		{
+			this._choosingMaps = false;
+			this._choosingRndMaps = false;
+			this._newOrLoad = false;
+			this.StartButton.SetActive(true);
+			this.CreateMapButton.SetActive(true);
+			this.ExitButton.SetActive(true);
+			this._choosingPlayers = false;
+			this._choosingLeaders = false;
+			this._choosingDificulty = false;
+			this._LoadMap = false;
+		}
+		else
+		{
+			this.StartButton.SetActive(false);
+			this.CreateMapButton.SetActive(false);
+			this.ExitButton.SetActive(false);
+		}
+		if (MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.Load)
+		{
+			this._newOrLoad = false;
+		}
+		if (MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.Gamemode)
+		{
+			this.GoBackButtonPartida.SetActive(true);
+			this.LocalGameButton.SetActive(true);
+			this.OptionsButton.SetActive(true);
+			this._choosingPlayers = false;
+			this._choosingLeaders = false;
+		}
+		else
+		{
+			this.GoBackButtonPartida.SetActive(false);
+			this.LocalGameButton.SetActive(false);
+			this.OptionsButton.SetActive(false);
+		}
+		if (MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.Options)
+		{
+			this.OptionsGoBackButton.SetActive(true);
+			this._choosingPlayers = false;
+			this._choosingLeaders = false;
+		}
+		else
+		{
+			this.OptionsGoBackButton.SetActive(false);
+		}
+		if (MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.LocalGame)
+		{
+			this.GoBackButtonSelection.SetActive(true);
+			this.SettingsPlayers.SetActive(true);
+			this.SettingsButtonMap.SetActive(true);
+			this.PlayGame.SetActive(true);
+			this.RandomizadorReligion.SetActive(!this._choosingPlayers);
+		}
+		else
+		{
+			this.GoBackButtonSelection.SetActive(false);
+			this.SettingsPlayers.SetActive(false);
+			this.SettingsButtonMap.SetActive(false);
+			this.RandomizadorReligion.SetActive(false);
+			this.PlayGame.SetActive(false);
+		}
+		if (this._newOrLoad)
+		{
+			this.LoadGame.SetActive(true);
+			this.NewGame.SetActive(true);
+		}
+		else
+		{
+			this.LoadGame.SetActive(false);
+			this.NewGame.SetActive(false);
+		}
+		if (this._choosingPlayers)
+		{
+			this.SliderNumberPlayers.SetActive(true);
+			this.NumberPlayers.SetActive(true);
+			this.NombrePlayers.SetActive(true);
+			this.CpuORealPlayers.SetActive(true);
+		}
+		else
+		{
+			this.SliderNumberPlayers.SetActive(false);
+			this.NumberPlayers.SetActive(false);
+			this.NombrePlayers.SetActive(false);
+			this.CpuORealPlayers.SetActive(false);
+		}
+		if (this._LoadMap)
+		{
+			this.SettingsLoadMap.SetActive(true);
+		}
+		else
+		{
+			this.SettingsLoadMap.SetActive(false);
+		}
+		if (this._choosingLeaders)
+		{
+			this.SettingsLeaders.SetActive(true);
+		}
+		else
+		{
+			this.ManageExplainingLeader(0);
+			this.SettingsLeaders.SetActive(false);
+		}
+		if (this._choosingMaps)
+		{
+			this.SettingsMap.SetActive(true);
+		}
+		else
+		{
+			this.SettingsMap.SetActive(false);
+		}
+		if (this._choosingRndMaps)
+		{
+			this.SettingsRndMapSize.SetActive(true);
+			this.SettingsRndMapType.SetActive(true);
+		}
+		else
+		{
+			this.SettingsRndMapSize.SetActive(false);
+			this.SettingsRndMapType.SetActive(false);
+		}
+		if (this._choosingDificulty)
+		{
+			this.DificultySection.SetActive(true);
+		}
+		else
+		{
+			this.DificultySection.SetActive(false);
+		}
+		if (MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.LocalGame || MenuStateManager.Instance.EstadoMenu == MenuStateManager.MenuStates.Load)
+		{
+			this.Logo.SetActive(false);
+		}
+		else
+		{
+			this.Logo.SetActive(true);
+		}
+		if (this.namesList == null)
+		{
+			this.namesList = new string[this._gameSettings.NumJug];
+			for (int i = 1; i <= this._gameSettings.NumJug; i++)
+			{
+				this.namesList[i - 1] = "Jugador " + i.ToString();
+			}
+		}
+		if (this._gameSettings.NumJug != this.namesList.Length)
+		{
+			string[] array = this.namesList;
+			this.namesList = new string[this._gameSettings.NumJug];
+			for (int j = 0; j < this._gameSettings.NumJug; j++)
+			{
+				if (j < array.Length)
+				{
+					this.namesList[j] = array[j];
+				}
+				else
+				{
+					this.namesList[j] = "Jugador " + (j + 1).ToString();
+				}
+			}
+		}
+		bool[] array2 = this._gameSettings.returnTicks();
+		for (int k = 0; k < this.listaTicks.Length; k++)
+		{
+			if (array2[k])
+			{
+				this.listaTicks[k].sprite = this.TickSi;
+			}
+			else
+			{
+				this.listaTicks[k].sprite = this.TickNo;
+			}
+		}
+	}
+
+	// Token: 0x060003ED RID: 1005 RVA: 0x0003A1A8 File Offset: 0x000383A8
+	public void Control_Buttons(string[] leaders)
+	{
+		int num = 10;
+		if (leaders.Length < num)
+		{
+			num = leaders.Length;
+		}
+		for (int i = 0; i < num; i++)
+		{
+			this.textPlayers[i].ChangeAppearance(leaders[i + this.ButtonOffset]);
+		}
+	}
+
+	// Token: 0x060003EE RID: 1006 RVA: 0x0003A1E8 File Offset: 0x000383E8
+	public void ChoosingPlayers(bool a)
+	{
+		this._choosingPlayers = a;
+		this._choosingMaps = false;
+		this._choosingRndMaps = false;
+		this._choosingDificulty = false;
+		this._LoadMap = false;
+		this._gameSettings.ChangeNumPlayers();
+		this.ActualizeRealLideres(this._gameSettings.getRealLideres());
+	}
+
+	// Token: 0x060003EF RID: 1007 RVA: 0x0003A234 File Offset: 0x00038434
+	public void ChoosingLeaders(bool a)
+	{
+		this._choosingLeaders = a;
+	}
+
+	// Token: 0x060003F0 RID: 1008 RVA: 0x0003A23D File Offset: 0x0003843D
+	public bool CanIScrollNames()
+	{
+		return !this._choosingLeaders && this._choosingPlayers;
+	}
+
+	// Token: 0x060003F1 RID: 1009 RVA: 0x0003A24F File Offset: 0x0003844F
+	public void ChoosingMap(bool a)
+	{
+		this._choosingMaps = a;
+		this._choosingPlayers = false;
+		this._choosingLeaders = false;
+		this._choosingDificulty = false;
+	}
+
+	// Token: 0x060003F2 RID: 1010 RVA: 0x0003A26D File Offset: 0x0003846D
+	public void LoadingMap()
+	{
+		this._LoadMap = true;
+		this._choosingRndMaps = false;
+		this._choosingPlayers = false;
+		this._choosingLeaders = false;
+		this.myTranscriptor.Show();
+	}
+
+	// Token: 0x060003F3 RID: 1011 RVA: 0x0003A296 File Offset: 0x00038496
+	public void ChoosingRndMap(bool a)
+	{
+		this._LoadMap = false;
+		this._choosingRndMaps = a;
+	}
+
+	// Token: 0x060003F4 RID: 1012 RVA: 0x0003A2A6 File Offset: 0x000384A6
+	public void MapChosen()
+	{
+		this._LoadMap = false;
+		this._choosingRndMaps = false;
+		this._choosingPlayers = false;
+		this._choosingLeaders = false;
+	}
+
+	// Token: 0x060003F5 RID: 1013 RVA: 0x0003A2C4 File Offset: 0x000384C4
+	public void ChoosingDificulty()
+	{
+		this._choosingMaps = false;
+		this._choosingPlayers = false;
+		this._choosingLeaders = false;
+		this._choosingDificulty = true;
+	}
+
+	// Token: 0x060003F6 RID: 1014 RVA: 0x0003A2E2 File Offset: 0x000384E2
+	public void LoadOrNew(bool a)
+	{
+		this._newOrLoad = a;
+	}
+
+	// Token: 0x060003F7 RID: 1015 RVA: 0x0003A2EB File Offset: 0x000384EB
+	public void ManageExplainingLeader(int i)
+	{
+		if (i == 0)
+		{
+			this.ShowLeader.SetActive(false);
+			return;
+		}
+		this.ShowLeader.SetActive(true);
+		this.ShowLeader.GetComponent<ShowLeader>().Change(this.ScriptLideres[i]);
+	}
+
+	// Token: 0x060003F8 RID: 1016 RVA: 0x0003A324 File Offset: 0x00038524
+	public void ChangeImageSeleccTam(int i)
+	{
+		if (i != this.imagenSeleccTam)
+		{
+			switch (this.imagenSeleccTam)
+			{
+			case 0:
+				this.Im_enano.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 1:
+				this.Im_peque.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 2:
+				this.Im_mediano.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 3:
+				this.Im_grando.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 4:
+				this.Im_enorme.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 5:
+				this.Im_gigante.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			}
+			this.imagenSeleccTam = i;
+			switch (this.imagenSeleccTam)
+			{
+			case 0:
+				this.Im_enano.color = new Color(0.2813f, 0.849f, 0.1642f);
+				return;
+			case 1:
+				this.Im_peque.color = new Color(0.2813f, 0.849f, 0.1642f);
+				return;
+			case 2:
+				this.Im_mediano.color = new Color(0.2813f, 0.849f, 0.1642f);
+				return;
+			case 3:
+				this.Im_grando.color = new Color(0.2813f, 0.849f, 0.1642f);
+				return;
+			case 4:
+				this.Im_enorme.color = new Color(0.2813f, 0.849f, 0.1642f);
+				return;
+			case 5:
+				this.Im_gigante.color = new Color(0.2813f, 0.849f, 0.1642f);
+				break;
+			default:
+				return;
+			}
+		}
+	}
+
+	// Token: 0x060003F9 RID: 1017 RVA: 0x0003A520 File Offset: 0x00038720
+	public void ChangeImageSeleccTyp(int i)
+	{
+		if (i != this.imagenSeleccTyp)
+		{
+			switch (this.imagenSeleccTyp)
+			{
+			case 0:
+				this.Im_antiguo.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 1:
+				this.Im_continentes.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 2:
+				this.Im_archipielago.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			case 3:
+				this.Im_pangea.color = new Color(0.8f, 0.639f, 0.1843f);
+				break;
+			}
+			this.imagenSeleccTyp = i;
+			switch (this.imagenSeleccTyp)
+			{
+			case 0:
+				this.Im_antiguo.color = new Color(0.2813f, 0.849f, 0.1642f);
+				this._titulo.text = "Antiguo";
+				this._desc.text = "Método de generación de mundos por defecto. En la versión base del juego era el único tipo de generador de mapas aleatorios que había. Suele crear mundos bastante aleatorios pero jugables";
+				return;
+			case 1:
+				this.Im_continentes.color = new Color(0.2813f, 0.849f, 0.1642f);
+				this._titulo.text = "Continentes";
+				this._desc.text = "Mundo en el que hay dos o más continenetes de tamaño medio/grande separados por mar";
+				return;
+			case 2:
+				this.Im_archipielago.color = new Color(0.2813f, 0.849f, 0.1642f);
+				this._titulo.text = "Archipiélago";
+				this._desc.text = "Mundo en el que hay mayoritariamente agua, y algunas islas esparcidas de tamaño pequeño/mediano separadas medianamente";
+				return;
+			case 3:
+				this.Im_pangea.color = new Color(0.2813f, 0.849f, 0.1642f);
+				this._titulo.text = "Pangea";
+				this._desc.text = "Mundo en el que solo hay un supercontinente en el centro del mapa";
+				break;
+			default:
+				return;
+			}
+		}
+	}
+
+	// Token: 0x060003FA RID: 1018 RVA: 0x0003A704 File Offset: 0x00038904
+	public void SetNames()
+	{
+		bool flag = false;
+		int num = 0;
+		while (!flag && num < this.namesList.Length)
+		{
+			if (this.namesList[num] == this.myInputFields[0].text)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (flag)
+		{
+			for (int i = 0; i < this._gameSettings.NumJug; i++)
+			{
+				this.namesList[i + num] = this.myInputFields[i].text;
+			}
+			return;
+		}
+		num = 0;
+		while (!flag && num < this.namesList.Length)
+		{
+			if (this.namesList[num] == this.myInputFields[1].text)
+			{
+				flag = true;
+			}
+			else
+			{
+				num++;
+			}
+		}
+		if (flag)
+		{
+			this.namesList[num - 1] = this.myInputFields[0].text;
+			return;
+		}
+		Debug.Log("Advertencia: Error en la lista de nombres");
+	}
+
+	// Token: 0x060003FB RID: 1019 RVA: 0x0003A7D5 File Offset: 0x000389D5
+	public void GoUpOne()
+	{
+		if (this.ButtonOffset > 0)
+		{
+			this.ButtonOffset--;
+			this._gameSettings.ActualizeLeaders();
+			this.ActualizeLeadersNames();
+		}
+	}
+
+	// Token: 0x060003FC RID: 1020 RVA: 0x0003A7FF File Offset: 0x000389FF
+	public void GoDownOne()
+	{
+		if (this.ButtonOffset + 10 < this._gameSettings.NumJug)
+		{
+			this.ButtonOffset++;
+			this._gameSettings.ActualizeLeaders();
+			this.ActualizeLeadersNames();
+		}
+	}
+
+	// Token: 0x060003FD RID: 1021 RVA: 0x0003A838 File Offset: 0x00038A38
+	public void ActualizeLeadersNames()
+	{
+		int num = 0;
+		while (num < this.myInputFields.Length && num < this.namesList.Length)
+		{
+			this.myInputFields[num].text = this.namesList[num + this.ButtonOffset];
+			num++;
+		}
+		this.ActualizeRealLideres(this._gameSettings.getRealLideres());
+	}
+
+	// Token: 0x060003FE RID: 1022 RVA: 0x0003A890 File Offset: 0x00038A90
+	public void PantallaDeCargado()
+	{
+		this.Everything.SetActive(false);
+		this.Loading.SetActive(true);
+	}
+
+	// Token: 0x060003FF RID: 1023 RVA: 0x0003A8AC File Offset: 0x00038AAC
+	public void ActualizeRealLideres(bool[] lids)
+	{
+		if (this.CPUorReal != null)
+		{
+			int buttonOffset = this.ButtonOffset;
+			if (lids != null)
+			{
+				int num = 0;
+				while (num < this.CPUorReal.Length && num + this.ButtonOffset < lids.Length)
+				{
+					if (lids[num + this.ButtonOffset])
+					{
+						this.CPUorReal[num].sprite = this.Real;
+					}
+					else
+					{
+						this.CPUorReal[num].sprite = this.CPU;
+					}
+					num++;
+				}
+			}
+		}
+	}
+
+	// Token: 0x06000400 RID: 1024 RVA: 0x0003A920 File Offset: 0x00038B20
+	public void ReiniciarTut()
+	{
+		TutorialManager.Blocked blocked = new TutorialManager.Blocked();
+		File.WriteAllText(Application.dataPath + "/Tutorial/Blocked.json", JsonUtility.ToJson(blocked));
+	}
+
+	// Token: 0x06000401 RID: 1025 RVA: 0x0003A950 File Offset: 0x00038B50
+	public void DificultadDescripcion(int i)
+	{
+		switch (i)
+		{
+		case 0:
+			this.descDificultad.text = "Dificultad más sencilla de todas. Ideal si quieres familiarizarte con los controles del juego sin que te molesten ni que te tengas que preocupar\n\n-40% de producción, comida, oro, ciencia, cultura, turismo y fe a los jugadores controlados por el ordenador. Sus unidades se llevan 5 puntos menos de fuerza y, además, no podrán declarar la guerra";
+			return;
+		case 1:
+			this.descDificultad.text = "Dificultad fácil para aquellos que aún no controlen del todo el juego pero deséen empezar a escalar la dificultad\n\n-20% de producción, comida, oro, ciencia, cultura, turismo y fe a los jugadores controlados por el ordenador. Sus unidades se llevan 2 puntos menos de fuerza";
+			return;
+		case 2:
+			this.descDificultad.text = "Dificultad promedio. Todos los jugadores tienen exactamente la misma ventaja, por lo que para alcanzar la victoria uno debe aprovecharse de la estupidez del algorimo que controla el resto de civilizaciones (lo cual no es muy complicado jaja)";
+			return;
+		case 3:
+			this.descDificultad.text = "Dificultad escalada ligeramente para compensar la estupidez de la maquinita\n\n+5% de producción, comida, oro, ciencia, cultura, turismo, fe e influencia a los jugadores controlados por el ordenador. Sus unidades se llevan 1 punto más de fuerza";
+			return;
+		case 4:
+			this.descDificultad.text = "Dificultad que comienza ya a ser complicada de superar por parte de un jugador humano\n\n+10% de producción, comida, oro, ciencia, cultura, turismo, fe e influencia a los jugadores controlados por el ordenador. Sus unidades se llevan 2 puntos más de fuerza. Comienzan la partida con un trabajador extra. +1 de felicidad en sus ciudades";
+			return;
+		case 5:
+			this.descDificultad.text = "Dificultad clásicamente más difícil en los juegos de Civilization. El reto que los mejores jugadores buscan superar\n\n+20% de producción, comida, oro, ciencia, cultura, turismo, fe e influencia a los jugadores controlados por el ordenador. Sus unidades se llevan 3 puntos más de fuerza. Comienzan la partida con dos trabajadores y un colono extra. +3 de felicidad en sus ciudades";
+			return;
+		case 6:
+			this.descDificultad.text = "+50% de producción, comida, oro, ciencia, cultura, turismo, fe e influencia a los jugadores controlados por el ordenador. Sus unidades se llevan 5 puntos más de fuerza. Comienzan la partida con tres trabajadores y dos colonos extra. +5 de felicidad en sus ciudades\n\nNo he puesto esta dificutad aquí para que sea superada. Es un reto tan difícil que solo aquellos que se estudien a fondo las mecánicas del juego y utilicen las estrategias más rotas tendrán alguna posibilidad de superar. Y, aun así, costará muchísimos intentos\n\nBuena suerte a los valientes que deséen probarlo en serio ._.";
+			return;
+		case 7:
+			this.descDificultad.text = "Oh, ¿no te ha parecido lo suficientemente difícil?\n Tendremos que ponerlo más complicado entonces, supongo\n\n+100% de producción, comida, oro, ciencia, cultura, turismo, fe e influencia a los jugadores controlados por el ordenador. Sus unidades se llevan 5 puntos más de fuerza y +20% del total. Comienzan la partida con cuatro trabajadores y tres colonos extra. +10 de felicidad en sus ciudades\n\n";
+			return;
+		default:
+			this.descDificultad.text = "";
+			return;
+		}
+	}
+
+	// Token: 0x06000402 RID: 1026 RVA: 0x0003AA20 File Offset: 0x00038C20
+	public void DificultadSelect(int i)
+	{
+		this._gameSettings.SetDificultad(i);
+		for (int j = 0; j < this.DificultySelects.Length; j++)
+		{
+			this.DificultySelects[j].enabled = j == i;
+		}
+	}
+
+	// Token: 0x040004E1 RID: 1249
+	private const string TEXT_ANT = "Método de generación de mundos por defecto. En la versión base del juego era el único tipo de generador de mapas aleatorios que había. Suele crear mundos bastante aleatorios pero jugables";
+
+	// Token: 0x040004E2 RID: 1250
+	private const string TEXT_ARCH = "Mundo en el que hay mayoritariamente agua, y algunas islas esparcidas de tamaño pequeño/mediano separadas medianamente";
+
+	// Token: 0x040004E3 RID: 1251
+	private const string TEXT_CONT = "Mundo en el que hay dos o más continenetes de tamaño medio/grande separados por mar";
+
+	// Token: 0x040004E4 RID: 1252
+	private const string TEXT_PANG = "Mundo en el que solo hay un supercontinente en el centro del mapa";
+
+	// Token: 0x040004E5 RID: 1253
+	[SerializeField]
+	private GameObject Logo;
+
+	// Token: 0x040004E6 RID: 1254
+	[SerializeField]
+	private GameObject ShowLeader;
+
+	// Token: 0x040004E7 RID: 1255
+	[SerializeField]
+	private GameSettings _gameSettings;
+
+	// Token: 0x040004E8 RID: 1256
+	[SerializeField]
+	private Lider[] ScriptLideres;
+
+	// Token: 0x040004E9 RID: 1257
+	[Header("Botones del menú generales")]
+	[SerializeField]
+	private GameObject StartButton;
+
+	// Token: 0x040004EA RID: 1258
+	[SerializeField]
+	private GameObject ExitButton;
+
+	// Token: 0x040004EB RID: 1259
+	[SerializeField]
+	private GameObject CreateMapButton;
+
+	// Token: 0x040004EC RID: 1260
+	[SerializeField]
+	private GameObject LocalGameButton;
+
+	// Token: 0x040004ED RID: 1261
+	[SerializeField]
+	private GameObject OptionsButton;
+
+	// Token: 0x040004EE RID: 1262
+	[SerializeField]
+	private GameObject OptionsGoBackButton;
+
+	// Token: 0x040004EF RID: 1263
+	[SerializeField]
+	private GameObject SliderNumberPlayers;
+
+	// Token: 0x040004F0 RID: 1264
+	[SerializeField]
+	private GameObject NumberPlayers;
+
+	// Token: 0x040004F1 RID: 1265
+	[SerializeField]
+	private GameObject NombrePlayers;
+
+	// Token: 0x040004F2 RID: 1266
+	[SerializeField]
+	private GameObject CpuORealPlayers;
+
+	// Token: 0x040004F3 RID: 1267
+	[SerializeField]
+	private GameObject NewGame;
+
+	// Token: 0x040004F4 RID: 1268
+	[SerializeField]
+	private GameObject LoadGame;
+
+	// Token: 0x040004F5 RID: 1269
+	[SerializeField]
+	private GameObject PlayGame;
+
+	// Token: 0x040004F6 RID: 1270
+	[SerializeField]
+	private GameObject GoBackButtonPartida;
+
+	// Token: 0x040004F7 RID: 1271
+	[SerializeField]
+	private GameObject GoBackButtonSelection;
+
+	// Token: 0x040004F8 RID: 1272
+	[SerializeField]
+	private GameObject RandomizadorReligion;
+
+	// Token: 0x040004F9 RID: 1273
+	[SerializeField]
+	private GameObject DificultySection;
+
+	// Token: 0x040004FA RID: 1274
+	[Header("Elección de Líderes")]
+	[SerializeField]
+	private GameObject SettingsPlayers;
+
+	// Token: 0x040004FB RID: 1275
+	[SerializeField]
+	private GameObject SettingsLeaders;
+
+	// Token: 0x040004FC RID: 1276
+	[Header("Texto de los botones de jugadores")]
+	[SerializeField]
+	private LeaderButton[] textPlayers;
+
+	// Token: 0x040004FD RID: 1277
+	[Header("Elección de Mapa")]
+	[SerializeField]
+	private GameObject SettingsButtonMap;
+
+	// Token: 0x040004FE RID: 1278
+	[SerializeField]
+	private GameObject SettingsMap;
+
+	// Token: 0x040004FF RID: 1279
+	[SerializeField]
+	private GameObject SettingsRndMapSize;
+
+	// Token: 0x04000500 RID: 1280
+	[SerializeField]
+	private GameObject SettingsRndMapType;
+
+	// Token: 0x04000501 RID: 1281
+	[SerializeField]
+	private GameObject SettingsLoadMap;
+
+	// Token: 0x04000502 RID: 1282
+	[Header("Imagenes tamaños de mapas")]
+	[SerializeField]
+	private Image Im_enano;
+
+	// Token: 0x04000503 RID: 1283
+	[SerializeField]
+	private Image Im_peque;
+
+	// Token: 0x04000504 RID: 1284
+	[SerializeField]
+	private Image Im_mediano;
+
+	// Token: 0x04000505 RID: 1285
+	[SerializeField]
+	private Image Im_grando;
+
+	// Token: 0x04000506 RID: 1286
+	[SerializeField]
+	private Image Im_enorme;
+
+	// Token: 0x04000507 RID: 1287
+	[SerializeField]
+	private Image Im_gigante;
+
+	// Token: 0x04000508 RID: 1288
+	private int imagenSeleccTam = -1;
+
+	// Token: 0x04000509 RID: 1289
+	[Header("Imagenes tipos de mapas")]
+	[SerializeField]
+	private Image Im_antiguo;
+
+	// Token: 0x0400050A RID: 1290
+	[SerializeField]
+	private Image Im_continentes;
+
+	// Token: 0x0400050B RID: 1291
+	[SerializeField]
+	private Image Im_archipielago;
+
+	// Token: 0x0400050C RID: 1292
+	[SerializeField]
+	private Image Im_pangea;
+
+	// Token: 0x0400050D RID: 1293
+	private int imagenSeleccTyp;
+
+	// Token: 0x0400050E RID: 1294
+	[SerializeField]
+	private TMP_Text _titulo;
+
+	// Token: 0x0400050F RID: 1295
+	[SerializeField]
+	private TMP_Text _desc;
+
+	// Token: 0x04000510 RID: 1296
+	[Header("Precargado de escenas")]
+	[SerializeField]
+	private GameObject Everything;
+
+	// Token: 0x04000511 RID: 1297
+	[SerializeField]
+	private GameObject Loading;
+
+	// Token: 0x04000512 RID: 1298
+	[Header("Ticks de haber confirmado las opciones")]
+	[SerializeField]
+	private Image[] listaTicks;
+
+	// Token: 0x04000513 RID: 1299
+	[SerializeField]
+	private Sprite TickSi;
+
+	// Token: 0x04000514 RID: 1300
+	[SerializeField]
+	private Sprite TickNo;
+
+	// Token: 0x04000515 RID: 1301
+	public int ButtonOffset;
+
+	// Token: 0x04000516 RID: 1302
+	private const int MAX_LEADER_BUTTONS = 10;
+
+	// Token: 0x04000517 RID: 1303
+	public string[] namesList;
+
+	// Token: 0x04000518 RID: 1304
+	[SerializeField]
+	private TMP_InputField[] myInputFields;
+
+	// Token: 0x04000519 RID: 1305
+	[SerializeField]
+	private Image[] CPUorReal;
+
+	// Token: 0x0400051A RID: 1306
+	[SerializeField]
+	private Sprite CPU;
+
+	// Token: 0x0400051B RID: 1307
+	[SerializeField]
+	private Sprite Real;
+
+	// Token: 0x0400051C RID: 1308
+	[SerializeField]
+	private Image[] DificultySelects;
+
+	// Token: 0x0400051D RID: 1309
+	[SerializeField]
+	private TMP_Text descDificultad;
+
+	// Token: 0x0400051E RID: 1310
+	private TranscriptorDePartidas myTranscriptor;
+
+	// Token: 0x0400051F RID: 1311
+	private bool _choosingPlayers;
+
+	// Token: 0x04000520 RID: 1312
+	private bool _choosingLeaders;
+
+	// Token: 0x04000521 RID: 1313
+	private bool _choosingMaps;
+
+	// Token: 0x04000522 RID: 1314
+	private bool _choosingRndMaps;
+
+	// Token: 0x04000523 RID: 1315
+	private bool _choosingDificulty;
+
+	// Token: 0x04000524 RID: 1316
+	private bool _newOrLoad;
+
+	// Token: 0x04000525 RID: 1317
+	private bool _LoadMap;
+}
