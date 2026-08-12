@@ -32,6 +32,7 @@ namespace CivilizameMP.UI
         private Image _spinnerImage;
         private bool _isSpinning;
         private bool _isInitialized;
+        private Canvas _panelCanvas;
 
         private void Awake()
         {
@@ -55,14 +56,45 @@ namespace CivilizameMP.UI
             if (_rectTransform == null)
                 _rectTransform = gameObject.AddComponent<RectTransform>();
             
-            _rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-            _rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-            _rectTransform.sizeDelta = new Vector2(500, 250);
+            _rectTransform.anchorMin = Vector2.zero;
+            _rectTransform.anchorMax = Vector2.one;
+            _rectTransform.sizeDelta = Vector2.zero;
+            _rectTransform.anchoredPosition = Vector2.zero;
+
+            _panelCanvas = gameObject.GetComponent<Canvas>();
+            if (_panelCanvas == null)
+                _panelCanvas = gameObject.AddComponent<Canvas>();
             
-            var bg = CreatePanel("Background", Vector2.zero, Vector2.one, new Color(0.05f, 0.05f, 0.05f, 0.95f));
+            _panelCanvas.overrideSorting = true;
+            _panelCanvas.sortingOrder = 20;
             
+            var raycaster = gameObject.GetComponent<GraphicRaycaster>();
+            if (raycaster == null)
+                gameObject.AddComponent<GraphicRaycaster>();
+
+            var blocker = new GameObject("Blocker");
+            blocker.transform.SetParent(transform, false);
+            var blockerImg = blocker.AddComponent<Image>();
+            blockerImg.color = new Color(0f, 0f, 0f, 1f);
+            blockerImg.raycastTarget = true;
+            
+            var blockerRect = blocker.GetComponent<RectTransform>();
+            blockerRect.anchorMin = Vector2.zero;
+            blockerRect.anchorMax = Vector2.one;
+            blockerRect.sizeDelta = Vector2.zero;
+            blockerRect.anchoredPosition = Vector2.zero;
+
+            blocker.transform.SetAsLastSibling();
+
+            var content = new GameObject("Content");
+            content.transform.SetParent(transform, false);
+            var contentRect = content.AddComponent<RectTransform>();
+            contentRect.anchorMin = new Vector2(0.5f, 0.5f);
+            contentRect.anchorMax = new Vector2(0.5f, 0.5f);
+            contentRect.sizeDelta = new Vector2(500, 250);
+
             var spinnerObj = new GameObject("Spinner");
-            spinnerObj.transform.SetParent(transform, false);
+            spinnerObj.transform.SetParent(content.transform, false);
             _spinnerImage = spinnerObj.AddComponent<Image>();
             _spinnerImage.color = new Color(0.8f, 0.8f, 0.8f, 1f);
             
@@ -72,10 +104,10 @@ namespace CivilizameMP.UI
             spinnerRect.anchoredPosition = new Vector2(0, 40);
             spinnerRect.sizeDelta = new Vector2(50, 50);
             
-            _statusText = CreateLabel("ESPERANDO OPONENTE", transform, new Vector2(0, -20), 32);
+            _statusText = CreateLabel("ESPERANDO OPONENTE", content.transform, new Vector2(0, -20), 32);
             _statusText.color = new Color(0.9f, 0.9f, 0.9f, 1f);
             
-            _subText = CreateLabel("Sincronizando partida...", transform, new Vector2(0, -60), 18);
+            _subText = CreateLabel("Sincronizando partida...", content.transform, new Vector2(0, -60), 18);
             _subText.color = new Color(0.6f, 0.6f, 0.6f, 1f);
             
             if (_canvasGroup == null)
@@ -85,6 +117,8 @@ namespace CivilizameMP.UI
             _canvasGroup.interactable = false;
             _canvasGroup.blocksRaycasts = false;
             
+            transform.SetAsLastSibling();
+            
             gameObject.SetActive(false);
             _isInitialized = true;
         }
@@ -92,6 +126,10 @@ namespace CivilizameMP.UI
         public override void Show()
         {
             if (!_isInitialized) BuildUI();
+            
+            transform.SetAsLastSibling();
+            if (_panelCanvas != null)
+                _panelCanvas.sortingOrder = 20;
             
             gameObject.SetActive(true);
             StopAllCoroutines();

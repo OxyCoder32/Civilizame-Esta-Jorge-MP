@@ -1,6 +1,7 @@
 using UnityEngine;
 using CivilizameMP.Core;
 using CivilizameMP.Network;
+using CivilizameMP.UI;
 using System.IO;
 using System.Reflection;
 using System.Collections;
@@ -58,23 +59,32 @@ namespace CivilizameMP.Network
                 
                 int turnoAntes = gm.TurnOrder;
                 
-                // Cargar estado del cliente. El cliente YA avanzó el turno antes de enviar.
                 gm.LoadGuardadoSeguridad();
                 
                 int turnoDespues = gm.TurnOrder;
                 CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Estado cargado de cliente {senderId}. Turno: {turnoAntes} -> {turnoDespues}");
                 
-                // Actualizar UI para que el host sepa de quién es el turno
-                UpdateTurnUI(gm);
+                if (turnoDespues == turnoAntes && !MPMatchState.IsLocalTurn(gm) && !MPMatchState.IsAITurn(gm))
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Turno es de cliente remoto, avanzando...");
+                    
+                    var nextTurnMethod = typeof(GameManager).GetMethod("NextTurn", 
+                        BindingFlags.Public | BindingFlags.Instance);
+                    if (nextTurnMethod != null)
+                        nextTurnMethod.Invoke(gm, new object[] { false, 0, false });
+                    
+                    turnoDespues = gm.TurnOrder;
+                    CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] NextTurn ejecutado. Nuevo turno: {turnoDespues}");
+                }
                 
-                // Si el turno actual es IA, ejecutarla completamente
+                UpdateTurnUI(gm);
+
                 if (MPMatchState.IsAITurn(gm))
                 {
                     StartCoroutine(ProcessAIAndContinue(gm));
                     return;
                 }
                 
-                // Es turno de humano (host o remoto). Guardar y enviar estado a todos.
                 HostManager.Instance?.SaveAndSendState();
                 _isProcessing = false;
             }
@@ -89,8 +99,6 @@ namespace CivilizameMP.Network
         {
             CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Procesando IA para jugador {gm.TurnOrder}");
             
-            // La IA se ejecuta frame a frame a través de GameManager.Update o similares.
-            // Esperamos a que la IA termine su turno (Turno = false).
             float startTime = Time.time;
             while (Time.time - startTime < 60f)
             {
@@ -125,17 +133,14 @@ namespace CivilizameMP.Network
             
             CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] NextTurn ejecutado. Nuevo turno: {gm.TurnOrder}");
             
-            // Actualizar UI
             UpdateTurnUI(gm);
             
-            // Si sigue siendo IA, procesar recursivamente
             if (MPMatchState.IsAITurn(gm))
             {
                 StartCoroutine(ProcessAIAndContinue(gm));
                 yield break;
             }
             
-            // Es turno humano. Guardar y enviar.
             HostManager.Instance?.SaveAndSendState();
             _isProcessing = false;
         }

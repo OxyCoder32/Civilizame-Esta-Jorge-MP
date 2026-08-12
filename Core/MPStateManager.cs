@@ -168,12 +168,6 @@ namespace CivilizameMP.Core
             CivilizameMPPlugin.Log.LogInfo($"[MPState] Jugador desregistrado: {config.PlayerName}");
         }
         
-        // ELIMINAR ESTE MÉTODO DUPLICADO (el que está en la línea 200)
-        // public PlayerSlotConfig GetPlayerSlot(int actorNumber)
-        // {
-        //     return ConnectedPlayers.TryGetValue(actorNumber, out var config) ? config : null;
-        // }
-        
         public PlayerSlotConfig GetPlayerSlot(int actorNumber)
         {
             return ConnectedPlayers.TryGetValue(actorNumber, out var config) ? config : null;
