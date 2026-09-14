@@ -4,6 +4,19 @@ using CivilizameMP.Core;
 using UnityEngine;
 
 [System.Serializable]
+public class PlayerSlotNetwork
+{
+    public int SlotIndex;
+    public int ActorNumber;
+    public string PlayerName;
+    public bool IsHuman;
+    public bool IsHost;
+    public bool IsConnected;
+    public bool IsReady;
+    public int LeaderIndex;
+}
+
+[System.Serializable]
 public class GameConfigMessage
 {
     public int Seed;
@@ -14,15 +27,28 @@ public class GameConfigMessage
     public int HumanPlayers;
     public string HostName;
     public int HostLeader;
-    public List<PlayerSlotConfig> PlayerSlots = new List<PlayerSlotConfig>();
+
+    public PlayerSlotNetwork[] PlayerSlotsArray = new PlayerSlotNetwork[0];
 
     public List<PlayerSlotConfig> GetPlayerSlots()
     {
-        return PlayerSlots;
-    }
+        var list = new List<PlayerSlotConfig>();
+        if (PlayerSlotsArray == null) return list;
 
-    public void SetPlayerSlots(List<PlayerSlotConfig> slots)
-    {
-        PlayerSlots = slots;
+        foreach (var n in PlayerSlotsArray)
+        {
+            list.Add(new PlayerSlotConfig
+            {
+                SlotIndex = n.SlotIndex,
+                ActorNumber = n.ActorNumber,
+                PlayerName = n.PlayerName,
+                IsHuman = n.IsHuman,
+                IsHost = n.IsHost,
+                IsConnected = n.IsConnected,
+                IsReady = n.IsReady,
+                LeaderIndex = n.LeaderIndex
+            });
+        }
+        return list;
     }
 }

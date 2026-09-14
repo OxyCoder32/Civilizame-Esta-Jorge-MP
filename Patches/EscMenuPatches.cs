@@ -71,7 +71,7 @@ namespace CivilizameMP.Patches
             var titleObj = new GameObject("MPTitle");
             titleObj.transform.SetParent(_mpSection.transform, false);
             var titleText = titleObj.AddComponent<TextMeshProUGUI>();
-            titleText.text = "MULTIPLAYER";
+            titleText.text = "Multijugador";
             titleText.fontSize = 20;
             titleText.color = new Color(0.8f, 0.6f, 0.2f, 1f);
             titleText.alignment = TextAlignmentOptions.Center;

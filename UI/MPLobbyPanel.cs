@@ -262,13 +262,22 @@ namespace CivilizameMP.UI
         {
             var state = MPStateManager.Instance;
             
+            var sortedPlayers = new List<PlayerSlotConfig>();
+            foreach (var kvp in state.ConnectedPlayers)
+            {
+                sortedPlayers.Add(kvp.Value);
+            }
+            sortedPlayers.Sort((a, b) => a.ActorNumber.CompareTo(b.ActorNumber));
+            
+            int displayIndex = 0;
+            
             for (int i = 0; i < MPConstants.MAX_PLAYERS && i < _slotUIs.Count; i++)
             {
-                var slot = state.PlayerSlots[i];
                 var slotUI = _slotUIs[i];
                 
-                if (slot != null && slot.IsConnected && slot.ActorNumber >= 0)
+                if (displayIndex < sortedPlayers.Count)
                 {
+                    var slot = sortedPlayers[displayIndex];
                     slotUI.SetActive(true);
                     var label = slotUI.GetComponentInChildren<TextMeshProUGUI>();
                     if (label != null)
@@ -276,9 +285,10 @@ namespace CivilizameMP.UI
                         string status = slot.IsReady ? " [✓]" : " [...]";
                         string hostTag = slot.IsHost ? "[HOST] " : "";
                         string selfTag = slot.ActorNumber == state.LocalActorNumber ? " (TU)" : "";
-                        label.text = $"{hostTag}J{i+1}: {slot.PlayerName}{selfTag}{status}";
+                        label.text = $"{hostTag}Jugador {displayIndex + 1}: {slot.PlayerName}{selfTag}{status}";
                         label.color = slot.IsReady ? Color.green : Color.yellow;
                     }
+                    displayIndex++;
                 }
                 else
                 {
@@ -291,7 +301,7 @@ namespace CivilizameMP.UI
         {
             var state = MPStateManager.Instance;
             
-            bool allReady = state.ConnectedPlayerCount >= 2 && state.AreAllPlayersReady();
+            bool allReady = state.ConnectedPlayerCount >= MPConstants.MIN_PLAYERS && state.AreAllPlayersReady();
             
             _startButton.interactable = allReady && state.IsHost;
             
@@ -301,19 +311,19 @@ namespace CivilizameMP.UI
             
             if (_statusLabel != null && !_gameStarting)
             {
-                if (state.ConnectedPlayerCount < 2)
+                if (state.ConnectedPlayerCount < MPConstants.MIN_PLAYERS)
                 {
-                    _statusLabel.text = $"Esperando jugadores... ({state.ConnectedPlayerCount}/2)";
+                    _statusLabel.text = $"Esperando jugadores... ({state.ConnectedPlayerCount}/{MPConstants.MIN_PLAYERS})";
                     _statusLabel.color = Color.yellow;
                 }
                 else if (!state.AreAllPlayersReady())
                 {
-                    _statusLabel.text = $"{state.ConnectedPlayerCount} jugadores - Esperando que todos marquen 'Listo'";
+                    _statusLabel.text = $"{state.ConnectedPlayerCount}/{state.ConnectedPlayers.Count} listos - Esperando que todos marquen 'Listo'";
                     _statusLabel.color = Color.yellow;
                 }
                 else
                 {
-                    _statusLabel.text = $"¡{state.ConnectedPlayerCount} jugadores listos!";
+                    _statusLabel.text = $"¡{state.ConnectedPlayerCount}/{state.ConnectedPlayers.Count} jugadores listos!";
                     _statusLabel.color = Color.green;
                 }
             }
@@ -324,9 +334,9 @@ namespace CivilizameMP.UI
             if (!MPStateManager.Instance.IsHost) return;
             
             var state = MPStateManager.Instance;
-            if (state.ConnectedPlayerCount < 2) 
+            if (state.ConnectedPlayerCount < MPConstants.MIN_PLAYERS) 
             {
-                _statusLabel.text = "Se necesitan al menos 2 jugadores";
+                _statusLabel.text = $"Se necesitan al menos {MPConstants.MIN_PLAYERS} jugadores";
                 return;
             }
             

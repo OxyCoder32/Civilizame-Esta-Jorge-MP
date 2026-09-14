@@ -110,6 +110,7 @@ namespace CivilizameMP.Network
         private void OnConfigReceived(string json)
         {
             if (MPStateManager.Instance.IsHost) return;
+
             try
             {
                 if (json.Contains("\"hostStarting\":true"))
@@ -121,47 +122,120 @@ namespace CivilizameMP.Network
                     return;
                 }
                 if (json.Contains("\"ready\":true")) return;
-                
+
                 var config = JsonUtility.FromJson<GameConfigMessage>(json);
-                if (config == null) return;
-                if (config.TotalPlayers <= 0 && (config.PlayerSlots == null || config.PlayerSlots.Count == 0))
-                    return;
-                 
-                if (config.PlayerSlots == null || config.PlayerSlots.Count == 0)
+                if (config == null)
                 {
-                    config.PlayerSlots = new List<PlayerSlotConfig>();
-                    for (int i = 0; i < config.TotalPlayers; i++)
-                    {
-                        config.PlayerSlots.Add(new PlayerSlotConfig
-                        {
-                            SlotIndex = i,
-                            ActorNumber = i + 1,
-                            PlayerName = i == 0 ? config.HostName : $"Jugador {i + 1}",
-                            IsHuman = true,
-                            IsHost = i == 0,
-                            IsConnected = true,
-                            IsReady = true,
-                            LeaderIndex = 0
-                        });
-                    }
+                    CivilizameMPPlugin.Log.LogError("[Client] Config FromJson devolvió null");
+                    return;
                 }
-                
+
+                if (config.PlayerSlotsArray == null || config.PlayerSlotsArray.Length == 0)
+                {
+                    CivilizameMPPlugin.Log.LogError("[Client] PlayerSlotsArray vacío o nulo");
+                    CivilizameMPPlugin.Log.LogError($"[Client] JSON recibido (primeros 300 chars): {json.Substring(0, Math.Min(300, json.Length))}");
+                    return;
+                }
+
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Config OK. Slots recibidos: {config.PlayerSlotsArray.Length}");
+
                 _pendingConfig = config;
                 _configReceived = true;
-                
+
                 var state = MPStateManager.Instance;
-                foreach (var slot in config.PlayerSlots)
+                int myActor = state.LocalActorNumber;
+
+                CivilizameMPPlugin.Log.LogInfo($"[Client] === APLICANDO CONFIG === Mi ActorNumber = {myActor}");
+
+                // Limpiar slots
+                state.ConnectedPlayers.Clear();
+                for (int i = 0; i < state.PlayerSlots.Count; i++)
                 {
-                    if (slot.IsConnected && slot.ActorNumber >= 0)
-                        state.RegisterPlayer(slot.ActorNumber, slot.PlayerName, slot.IsHost);
+                    state.PlayerSlots[i] = new PlayerSlotConfig
+                    {
+                        SlotIndex = i,
+                        PlayerName = $"Slot {i + 1}",
+                        IsConnected = false,
+                        IsHuman = false,
+                        IsReady = false,
+                        ActorNumber = -1
+                    };
                 }
-                
+
+                if (config.PlayerSlotsArray == null || config.PlayerSlotsArray.Length == 0)
+                {
+                    CivilizameMPPlugin.Log.LogError("[Client] PlayerSlotsArray vacío o nulo");
+                    CivilizameMPPlugin.Log.LogError($"[Client] JSON: {json.Substring(0, Math.Min(400, json.Length))}");
+                    return;
+                }
+
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Config OK. Slots recibidos: {config.PlayerSlotsArray.Length}");
+                int foundMySlot = -1;
+
+                foreach (var slot in config.PlayerSlotsArray)
+                {
+                    if (slot == null) continue;
+
+                    CivilizameMPPlugin.Log.LogInfo($"[Client] Config slot recibido → SlotIndex={slot.SlotIndex}, Actor={slot.ActorNumber}, Nombre={slot.PlayerName}");
+
+                    var newSlot = new PlayerSlotConfig
+                    {
+                        SlotIndex = slot.SlotIndex,
+                        ActorNumber = slot.ActorNumber,
+                        PlayerName = slot.PlayerName,
+                        IsHuman = slot.IsHuman,
+                        IsHost = slot.IsHost,
+                        IsConnected = slot.IsConnected,
+                        IsReady = slot.IsReady,
+                        LeaderIndex = slot.LeaderIndex
+                    };
+
+                    if (slot.SlotIndex >= 0 && slot.SlotIndex < state.PlayerSlots.Count)
+                    {
+                        state.PlayerSlots[slot.SlotIndex] = newSlot;
+                    }
+
+                    if (slot.ActorNumber > 0)
+                    {
+                        state.ConnectedPlayers[slot.ActorNumber] = newSlot;
+                    }
+
+                    // ¿Es mi actor?
+                    if (slot.ActorNumber == myActor)
+                    {
+                        foundMySlot = slot.SlotIndex;
+                        state.LocalSlotIndex = slot.SlotIndex;
+                        state.LocalPlayerName = slot.PlayerName;
+                        state.IsHost = slot.IsHost;
+                        state.IsClient = !slot.IsHost;
+
+                        CivilizameMPPlugin.Log.LogInfo($"[Client] ¡ENCONTRADO! Mi Actor {myActor} → SlotIndex = {slot.SlotIndex}");
+                    }
+                }
+
+                if (foundMySlot < 0)
+                {
+                    CivilizameMPPlugin.Log.LogError($"[Client] NO se encontró mi ActorNumber ({myActor}) en el config del host!");
+                    // Fallback de emergencia: buscar por nombre
+                    foreach (var slot in config.PlayerSlotsArray)
+                    {
+                        if (slot != null && slot.PlayerName == state.LocalPlayerName)
+                        {
+                            foundMySlot = slot.SlotIndex;
+                            state.LocalSlotIndex = slot.SlotIndex;
+                            CivilizameMPPlugin.Log.LogWarning($"[Client] Fallback por nombre → Slot {foundMySlot}");
+                            break;
+                        }
+                    }
+                }
+
+                CivilizameMPPlugin.Log.LogInfo($"[Client] Config aplicada. Mi SlotIndex final = {state.LocalSlotIndex}");
+
                 WriteNewGameData(config);
-                
-                // Enviar ready al host para que envíe el estado del mundo
+
                 PhotonManager.Instance.SendReady(true);
                 CivilizameMPPlugin.Log.LogInfo("[Client] Config recibida, enviando ready al host");
-                
+
                 if (_stateReceived && _pendingState != null)
                     LoadGameState();
                 else
@@ -375,69 +449,34 @@ namespace CivilizameMP.Network
         {
             var state = MPStateManager.Instance;
             var gm = GameManager.Instance;
-            
+
             if (gm == null || gm.jugadores == null)
             {
                 CivilizameMPPlugin.Log.LogError("[Client] GameManager o jugadores es null");
                 return;
             }
-            
-            var localPlayer = state.GetPlayerSlot(state.LocalActorNumber);
-            if (localPlayer == null)
+
+            int mySlot = state.LocalSlotIndex;
+
+            CivilizameMPPlugin.Log.LogInfo($"[Client] Asignando jugador local. Actor={state.LocalActorNumber}, SlotIndex={mySlot}, Nombre={state.LocalPlayerName}");
+
+            if (mySlot < 0 || mySlot >= gm.jugadores.Length)
             {
-                CivilizameMPPlugin.Log.LogError($"[Client] No se encontró slot para actor {state.LocalActorNumber}");
+                CivilizameMPPlugin.Log.LogError($"[Client] SlotIndex inválido: {mySlot}");
                 return;
             }
-            
-            CivilizameMPPlugin.Log.LogInfo($"[Client] Buscando jugador local. Actor={state.LocalActorNumber}, SlotConfig={localPlayer.SlotIndex}, Nombre={localPlayer.PlayerName}");
-            CivilizameMPPlugin.Log.LogInfo($"[Client] Jugadores en GameManager: {gm.jugadores.Length}");
-            for (int i = 0; i < gm.jugadores.Length; i++)
+
+            var jug = gm.jugadores[mySlot];
+            if (jug == null)
             {
-                var jug = gm.jugadores[i];
-                CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador[{i}]: Nombre={jug?.Nombre}, RealPlayer={jug?.RealPlayer}");
+                CivilizameMPPlugin.Log.LogError($"[Client] Jugador en slot {mySlot} es null");
+                return;
             }
-            
-            // Buscar por nombre exacto
-            for (int i = 0; i < gm.jugadores.Length; i++)
-            {
-                var jug = gm.jugadores[i];
-                if (jug != null && jug.RealPlayer && jug.Nombre == localPlayer.PlayerName)
-                {
-                    MPMatchState.SetLocalIndex(i);
-                    jug.Nombre = localPlayer.PlayerName;
-                    jug.lider = (GameSettings.Lideres)localPlayer.LeaderIndex;
-                    jug.color1 = localPlayer.PrimaryColor;
-                    jug.color2 = localPlayer.SecondaryColor;
-                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado por nombre: slot {i}");
-                    return;
-                }
-            }
-            
-            // Fallback por SlotIndex
-            if (localPlayer.SlotIndex >= 0 && localPlayer.SlotIndex < gm.jugadores.Length)
-            {
-                var jug = gm.jugadores[localPlayer.SlotIndex];
-                if (jug != null && jug.RealPlayer)
-                {
-                    MPMatchState.SetLocalIndex(localPlayer.SlotIndex);
-                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado por SlotIndex: {localPlayer.SlotIndex}");
-                    return;
-                }
-            }
-            
-            // Último fallback: primer jugador RealPlayer
-            for (int i = 0; i < gm.jugadores.Length; i++)
-            {
-                var jug = gm.jugadores[i];
-                if (jug != null && jug.RealPlayer)
-                {
-                    MPMatchState.SetLocalIndex(i);
-                    CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado fallback: slot {i}");
-                    return;
-                }
-            }
-            
-            CivilizameMPPlugin.Log.LogError("[Client] NO SE PUDO ASIGNAR JUGADOR LOCAL");
+
+            MPMatchState.SetLocalIndex(mySlot);
+            jug.Nombre = state.LocalPlayerName;
+
+            CivilizameMPPlugin.Log.LogInfo($"[Client] Jugador local asignado correctamente a Slot {mySlot}");
         }
 
         void WriteNewGameData(GameConfigMessage config)

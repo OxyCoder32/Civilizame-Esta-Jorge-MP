@@ -91,9 +91,11 @@ namespace CivilizameMP.Core
             {
                 ConnectedPlayers[actorNumber].PlayerName = playerName;
                 ConnectedPlayers[actorNumber].IsConnected = true;
+                ConnectedPlayers[actorNumber].IsHost = isHost;
                 return;
             }
-            
+
+            // Buscar el primer slot libre (solo se usa ANTES de empezar la partida)
             int slotIndex = -1;
             for (int i = 0; i < MaxPlayers; i++)
             {
@@ -103,13 +105,13 @@ namespace CivilizameMP.Core
                     break;
                 }
             }
-            
+
             if (slotIndex == -1)
             {
                 CivilizameMPPlugin.Log.LogError("[MPState] No hay slots disponibles!");
                 return;
             }
-            
+
             var config = new PlayerSlotConfig
             {
                 SlotIndex = slotIndex,
@@ -120,10 +122,10 @@ namespace CivilizameMP.Core
                 IsConnected = true,
                 IsReady = false
             };
-            
+
             ConnectedPlayers[actorNumber] = config;
             PlayerSlots[slotIndex] = config;
-            
+
             if (actorNumber == LocalActorNumber)
             {
                 IsHost = isHost;
@@ -131,32 +133,62 @@ namespace CivilizameMP.Core
                 LocalSlotIndex = slotIndex;
                 LocalPlayerName = playerName;
             }
-            
+
             CivilizameMPPlugin.Log.LogInfo($"[MPState] Jugador registrado: {playerName} (Actor: {actorNumber}, Slot {slotIndex}, Host: {isHost})");
         }
-        
-        public void UnregisterPlayer(int actorNumber)
+
+        public void ConvertPlayerToAI(int actorNumber)
         {
-            if (!ConnectedPlayers.ContainsKey(actorNumber)) return;
-            
-            var config = ConnectedPlayers[actorNumber];
+            if (!ConnectedPlayers.TryGetValue(actorNumber, out var config)) return;
+
             int slotIndex = config.SlotIndex;
-            
+
+            // Solo marcar como desconectado / IA. NO se reasigna el SlotIndex
+            config.IsConnected = false;
+            config.IsHuman = false;
+            config.IsReady = false;
+            config.ActorNumber = -1;
+            config.PlayerName = $"IA {slotIndex + 1}";
+
             ConnectedPlayers.Remove(actorNumber);
-            
+
             if (slotIndex >= 0 && slotIndex < PlayerSlots.Count)
             {
-                PlayerSlots[slotIndex] = new PlayerSlotConfig 
-                { 
-                    SlotIndex = slotIndex, 
-                    PlayerName = $"Slot {slotIndex+1}",
+                PlayerSlots[slotIndex] = config;
+            }
+
+            CivilizameMPPlugin.Log.LogInfo($"[MPState] Jugador convertido a IA: Slot {slotIndex}");
+        }
+
+        public void UnregisterPlayer(int actorNumber)
+        {
+            if (CurrentState == MPGameState.PlayingHost || CurrentState == MPGameState.PlayingClient)
+            {
+                ConvertPlayerToAI(actorNumber);
+                return;
+            }
+
+            // Antes de empezar la partida sí se puede limpiar el slot
+            if (!ConnectedPlayers.ContainsKey(actorNumber)) return;
+
+            var config = ConnectedPlayers[actorNumber];
+            int slotIndex = config.SlotIndex;
+
+            ConnectedPlayers.Remove(actorNumber);
+
+            if (slotIndex >= 0 && slotIndex < PlayerSlots.Count)
+            {
+                PlayerSlots[slotIndex] = new PlayerSlotConfig
+                {
+                    SlotIndex = slotIndex,
+                    PlayerName = $"Slot {slotIndex + 1}",
                     IsConnected = false,
                     IsHuman = false,
                     IsReady = false,
                     ActorNumber = -1
                 };
             }
-            
+
             if (actorNumber == LocalActorNumber)
             {
                 IsHost = false;
@@ -164,7 +196,7 @@ namespace CivilizameMP.Core
                 LocalSlotIndex = -1;
                 LocalActorNumber = -1;
             }
-            
+
             CivilizameMPPlugin.Log.LogInfo($"[MPState] Jugador desregistrado: {config.PlayerName}");
         }
         

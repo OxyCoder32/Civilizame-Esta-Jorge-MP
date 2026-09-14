@@ -8,7 +8,7 @@ namespace CivilizameMP.Core
         public const string GAME_VERSION = "1.0";
         public const string MENU_SCENE = "Menu";
         public const string GAME_SCENE = "Juego";
-        public const string MULTIPLAYER_BUTTON_TEXT = "MULTIPLAYER";
+        public const string MULTIPLAYER_BUTTON_TEXT = "Multijugador";
         public const float UI_TRANSITION_TIME = 0.3f;
         public const float SYNC_TIMEOUT = 30f;
         public const float RECONNECT_TIMEOUT = 60f;

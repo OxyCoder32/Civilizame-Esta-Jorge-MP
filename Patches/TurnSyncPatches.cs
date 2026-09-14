@@ -17,17 +17,12 @@ namespace CivilizameMP.Patches
 
             UpdateTurnUI(__instance);
 
-            // Solo el host envía estado después de NextTurn cuando es su PROPIO turno el que terminó
-            // (es decir, cuando el host presionó SkipButton y el juego llamó NextTurn)
             if (!MPStateManager.Instance.IsHost) return;
             if (HostManager.Instance != null && HostManager.Instance.IsGeneratingWorld) return;
 
-            // Si es turno de IA, HostStateProcessor se encarga (no debería pasar por aquí
-            // porque el host no llama NextTurn para IA, la IA se ejecuta sola)
             if (MPMatchState.IsAITurn(__instance))
                 return;
 
-            // Es turno humano. Guardar y enviar.
             HostManager.Instance?.SaveAndSendState();
         }
 

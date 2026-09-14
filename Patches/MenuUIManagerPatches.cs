@@ -63,7 +63,7 @@ namespace CivilizameMP.Patches
 
                 var textComponent = _mpButton.GetComponentInChildren<TMP_Text>();
                 if (textComponent != null)
-                    textComponent.text = "MULTIPLAYER";
+                    textComponent.text = "Multijugador";
 
                 var button = _mpButton.GetComponent<Button>();
                 button.onClick.RemoveAllListeners();

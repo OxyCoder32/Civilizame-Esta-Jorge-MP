@@ -138,77 +138,87 @@ namespace CivilizameMP.Network
         {
             var state = MPStateManager.Instance;
             var gm = GameManager.Instance;
-            
-            if (gm == null || gm.jugadores == null) return;
-            
+
+            if (gm == null || gm.jugadores == null)
+            {
+                CivilizameMPPlugin.Log.LogError("[Host] GameManager o jugadores es null al enviar config");
+                return;
+            }
+
             int seed = MPGameSettingsHelper.GetSeed();
             int mapSize = MPGameSettingsHelper.GetMapSize();
             int mapType = MPGameSettingsHelper.GetMapType();
             int difficulty = MPGameSettingsHelper.GetDifficulty();
-            
+
+            var slotsList = new List<PlayerSlotNetwork>();
+
+            for (int i = 0; i < gm.jugadores.Length; i++)
+            {
+                var jug = gm.jugadores[i];
+                if (jug == null) continue;
+
+                PlayerSlotConfig photonSlot = null;
+                foreach (var s in state.PlayerSlots)
+                {
+                    if (s.SlotIndex == i && s.IsConnected && s.ActorNumber > 0)
+                    {
+                        photonSlot = s;
+                        break;
+                    }
+                }
+
+                if (photonSlot != null)
+                {
+                    jug.Nombre = photonSlot.PlayerName;
+
+                    slotsList.Add(new PlayerSlotNetwork
+                    {
+                        SlotIndex = i,
+                        ActorNumber = photonSlot.ActorNumber,
+                        PlayerName = photonSlot.PlayerName,
+                        IsHuman = true,
+                        IsHost = photonSlot.IsHost,
+                        IsConnected = true,
+                        IsReady = true,
+                        LeaderIndex = (int)jug.lider
+                    });
+
+                    CivilizameMPPlugin.Log.LogInfo($"[Host] Config Slot {i} = {photonSlot.PlayerName} (Actor {photonSlot.ActorNumber})");
+                }
+                else
+                {
+                    slotsList.Add(new PlayerSlotNetwork
+                    {
+                        SlotIndex = i,
+                        ActorNumber = -1,
+                        PlayerName = jug.Nombre ?? $"IA {i + 1}",
+                        IsHuman = false,
+                        IsHost = false,
+                        IsConnected = false,
+                        IsReady = true,
+                        LeaderIndex = (int)jug.lider
+                    });
+                }
+            }
+
             var config = new GameConfigMessage
             {
                 Seed = seed,
                 MapSize = mapSize,
                 MapType = mapType,
                 Difficulty = difficulty,
-                TotalPlayers = state.ConnectedPlayerCount,
+                TotalPlayers = gm.jugadores.Length,
                 HumanPlayers = state.ConnectedPlayerCount,
                 HostName = state.LocalPlayerName,
-                PlayerSlots = new List<PlayerSlotConfig>()
+                PlayerSlotsArray = slotsList.ToArray()
             };
-            
-            for (int i = 0; i < gm.jugadores.Length; i++)
-            {
-                var jug = gm.jugadores[i];
-                if (jug == null) continue;
-                
-                PlayerSlotConfig slot = null;
-                foreach (var s in state.PlayerSlots)
-                {
-                    if (s.IsConnected && s.PlayerName == jug.Nombre)
-                    {
-                        slot = s;
-                        break;
-                    }
-                }
-                
-                if (slot == null)
-                {
-                    slot = new PlayerSlotConfig
-                    {
-                        SlotIndex = i,
-                        ActorNumber = i + 1,
-                        PlayerName = jug.Nombre,
-                        IsHuman = jug.RealPlayer,
-                        IsHost = i == 0,
-                        IsConnected = jug.RealPlayer,
-                        IsReady = true,
-                        LeaderIndex = (int)jug.lider,
-                        PrimaryColor = jug.color1,
-                        SecondaryColor = jug.color2
-                    };
-                }
-                else
-                {
-                    slot.LeaderIndex = (int)jug.lider;
-                    slot.PrimaryColor = jug.color1;
-                    slot.SecondaryColor = jug.color2;
-                }
-                
-                config.PlayerSlots.Add(slot);
-            }
-            
-            if (config.PlayerSlots.Count == 0)
-            {
-                foreach (var slot in state.PlayerSlots)
-                {
-                    if (slot.IsConnected)
-                        config.PlayerSlots.Add(slot);
-                }
-            }
-            
+
+            CivilizameMPPlugin.Log.LogInfo($"[Host] Enviando config con {config.PlayerSlotsArray.Length} slots");
+
             string json = JsonUtility.ToJson(config);
+            CivilizameMPPlugin.Log.LogInfo($"[Host] JSON config length = {json.Length}");
+            CivilizameMPPlugin.Log.LogInfo($"[Host] JSON preview: {json.Substring(0, Math.Min(400, json.Length))}");
+
             PhotonManager.Instance.SendConfigToAll(json);
             state.PendingGameConfig = config;
         }
@@ -216,22 +226,29 @@ namespace CivilizameMP.Network
         private void AssignHostPlayer()
         {
             var gm = GameManager.Instance;
-            if (gm == null || gm.jugadores == null) return;
-            
             var state = MPStateManager.Instance;
+            if (gm == null || gm.jugadores == null) return;
+
             var localPlayer = state.GetPlayerSlot(state.LocalActorNumber);
-            if (localPlayer == null) return;
-            
-            for (int i = 0; i < gm.jugadores.Length; i++)
+            if (localPlayer == null)
             {
-                var jug = gm.jugadores[i];
-                if (jug != null && jug.RealPlayer)
+                CivilizameMPPlugin.Log.LogError("[Host] No se encontró el slot del host");
+                return;
+            }
+
+            // Forzar el índice local del host
+            MPMatchState.SetLocalIndex(localPlayer.SlotIndex);
+
+            if (localPlayer.SlotIndex >= 0 && localPlayer.SlotIndex < gm.jugadores.Length)
+            {
+                var jug = gm.jugadores[localPlayer.SlotIndex];
+                if (jug != null)
                 {
-                    MPMatchState.SetLocalIndex(i);
                     jug.Nombre = localPlayer.PlayerName;
-                    return;
                 }
             }
+
+            CivilizameMPPlugin.Log.LogInfo($"[Host] AssignHostPlayer → Slot {localPlayer.SlotIndex} = {localPlayer.PlayerName}");
         }
 
         private float _lastSendTime;

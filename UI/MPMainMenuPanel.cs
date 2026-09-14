@@ -13,12 +13,12 @@ namespace CivilizameMP.UI
         protected override void BuildUI()
         {
             CreateBackground();
-            CreateLabel("MULTIPLAYER", transform, new Vector2(0, 180), 48);
-            _hostButton = CreateButton("CREAR PARTIDA", transform, new Vector2(0, 50), new Vector2(300, 60));
+            CreateLabel("Multijugador", transform, new Vector2(0, 180), 48);
+            _hostButton = CreateButton("Crear Partida", transform, new Vector2(0, 50), new Vector2(300, 60));
             _hostButton.onClick.AddListener(OnHostClick);
-            _joinButton = CreateButton("UNIRSE A PARTIDA", transform, new Vector2(0, -40), new Vector2(300, 60));
+            _joinButton = CreateButton("Unirse a Partida", transform, new Vector2(0, -40), new Vector2(300, 60));
             _joinButton.onClick.AddListener(OnJoinClick);
-            _backButton = CreateButton("VOLVER", transform, new Vector2(0, -150), new Vector2(200, 50));
+            _backButton = CreateButton("Volver", transform, new Vector2(0, -150), new Vector2(200, 50));
             _backButton.onClick.AddListener(OnBackClick);
             StyleButton(_hostButton);
             StyleButton(_joinButton);

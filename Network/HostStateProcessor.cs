@@ -35,9 +35,9 @@ namespace CivilizameMP.Network
             if (_isProcessing) return;
             if (stateData == null || stateData.Length == 0) return;
             if (senderId == MPStateManager.Instance.LocalActorNumber) return;
-            
+
             _isProcessing = true;
-            
+
             try
             {
                 string computedHash = PhotonManager.ComputeHash(stateData);
@@ -46,37 +46,34 @@ namespace CivilizameMP.Network
                     _isProcessing = false;
                     return;
                 }
-                
+
                 string path = Application.persistentDataPath + "/GuardadoSeguridad.jue";
                 File.WriteAllBytes(path, stateData);
-                
+
                 var gm = GameManager.Instance;
-                if (gm == null) 
-                { 
-                    _isProcessing = false; 
-                    return; 
-                }
-                
-                int turnoAntes = gm.TurnOrder;
-                
-                gm.LoadGuardadoSeguridad();
-                
-                int turnoDespues = gm.TurnOrder;
-                CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Estado cargado de cliente {senderId}. Turno: {turnoAntes} -> {turnoDespues}");
-                
-                if (turnoDespues == turnoAntes && !MPMatchState.IsLocalTurn(gm) && !MPMatchState.IsAITurn(gm))
+                if (gm == null)
                 {
-                    CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Turno es de cliente remoto, avanzando...");
-                    
-                    var nextTurnMethod = typeof(GameManager).GetMethod("NextTurn", 
-                        BindingFlags.Public | BindingFlags.Instance);
+                    _isProcessing = false;
+                    return;
+                }
+
+                int turnoAntes = gm.TurnOrder;
+                gm.LoadGuardadoSeguridad();
+                int turnoDespues = gm.TurnOrder;
+
+                CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] Estado cargado de cliente {senderId}. Turno: {turnoAntes} -> {turnoDespues}");
+
+                if (MPMatchState.IsRemoteHumanTurn(gm))
+                {
+                    CivilizameMPPlugin.Log.LogInfo("[HostStateProcessor] Avanzando turno del cliente...");
+
+                    var nextTurnMethod = typeof(GameManager).GetMethod("NextTurn",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
                     if (nextTurnMethod != null)
                         nextTurnMethod.Invoke(gm, new object[] { false, 0, false });
-                    
-                    turnoDespues = gm.TurnOrder;
-                    CivilizameMPPlugin.Log.LogInfo($"[HostStateProcessor] NextTurn ejecutado. Nuevo turno: {turnoDespues}");
                 }
-                
+
                 UpdateTurnUI(gm);
 
                 if (MPMatchState.IsAITurn(gm))
@@ -84,7 +81,7 @@ namespace CivilizameMP.Network
                     StartCoroutine(ProcessAIAndContinue(gm));
                     return;
                 }
-                
+
                 HostManager.Instance?.SaveAndSendState();
                 _isProcessing = false;
             }
