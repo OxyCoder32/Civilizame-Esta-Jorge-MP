@@ -10,6 +10,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Código de referencia del juego: NO compilar, solo consultar -->
+    <Compile Remove="Decompiled\**\*.cs" />
+    <Compile Remove="bin\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- BepInEx -->
     <Reference Include="BepInEx">
       <HintPath>..\CivilízameEstaJorge_64 v2.2\BepInEx\core\BepInEx.dll</HintPath>

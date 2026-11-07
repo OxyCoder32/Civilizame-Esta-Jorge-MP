@@ -46,10 +46,6 @@ namespace CivilizameMP
             clientObj.AddComponent<ClientManager>();
             DontDestroyOnLoad(clientObj);
 
-            var hostStateObj = new GameObject("HostStateProcessor");
-            hostStateObj.AddComponent<HostStateProcessor>();
-            DontDestroyOnLoad(hostStateObj);
-
             var panelObj = new GameObject("MPPanelManager");
             panelObj.AddComponent<MPPanelManager>();
             DontDestroyOnLoad(panelObj);

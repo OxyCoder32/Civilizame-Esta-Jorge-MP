@@ -116,8 +116,11 @@ namespace CivilizameMP.UI
                     panel = panelObj.AddComponent<MPLobbyPanel>();
                     break;
                 case MPPanelType.Waiting:
-                    panelObj = new GameObject("MPWaitingPanel");
-                    panel = panelObj.AddComponent<MPWaitingPanel>();
+                    // Reutilizar el singleton global: crear otro instancia haría que
+                    // Awake lo autodestruyera (conflicto de singleton) y el panel
+                    // quedaría roto/nunca visible.
+                    panel = MPWaitingPanel.Instance;
+                    panelObj = panel.gameObject;
                     break;
                 case MPPanelType.Error:
                     panelObj = new GameObject("MPErrorPanel");

@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
+using System.IO;
 using ExitGames.Client.Photon;
 using Photon.Realtime;
 using UnityEngine;
@@ -22,16 +22,43 @@ namespace CivilizameMP.Network
         public event Action OnJoinedRoomEvent;
         public event Action<Player> OnPlayerJoinedEvent;
         public event Action<Player> OnPlayerLeftEvent;
-        public event Action<byte[], int, string, int> OnStateReceived;
+        public event Action<HandoffMessage, int> OnHandoffReceived;
         public event Action<string> OnConfigReceived;
         public event Action<int, bool> OnRemoteReadyEvent;
         public event Action<short, string> OnJoinFailedEvent;
         public event Action<List<RoomInfo>> OnRoomListUpdateEvent;
         public event Action<bool> OnMasterClientSwitchedEvent;
 
-        private const byte STATE_EVENT = 1;
         private const byte CONFIG_EVENT = 2;
         private const byte READY_EVENT = 3;
+        private const byte HANDOFF_CHUNK_EVENT = 4;
+
+        private const int CHUNK_SIZE = 24000; // dentro del límite de eventos UDP de Photon
+
+        /// <summary>Respuesta de SendHandoff: el mensaje quedó en cola y se enviará al reconectar.</summary>
+        public const int SEND_QUEUED = -2;
+
+        /// <summary>UserId fijo de esta sesión de juego: imprescindible para el rejoin.</summary>
+        private static readonly string PersistentUserId = Guid.NewGuid().ToString();
+
+        private class OutgoingHandoff { public HandoffMessage Msg; public int Target; }
+        private readonly List<OutgoingHandoff> _outbox = new List<OutgoingHandoff>();
+
+        private string _lastRoomName;
+        private bool _wantReconnect;
+        private float _nextReconnectAt;
+
+        private class IncomingTransfer
+        {
+            public int TotalChunks;
+            public int PayloadLength;
+            public byte[] Buffer;
+            public bool[] Got;
+            public int Received;
+        }
+
+        private readonly Dictionary<int, IncomingTransfer> _incoming = new Dictionary<int, IncomingTransfer>();
+        private int _transferIdSeq;
 
         private bool _isConnecting;
         private float _connectionTimeout;
@@ -53,12 +80,28 @@ namespace CivilizameMP.Network
                 return;
             }
             Disconnect();
+
             _client = new LoadBalancingClient(ConnectionProtocol.Udp);
             _client.AddCallbackTarget(this);
             _client.AppId = appId;
             _client.AppVersion = MPConstants.GAME_VERSION;
-            _client.AuthValues = new AuthenticationValues(Guid.NewGuid().ToString());
+            // UserId persistente por sesión: necesario para OpRejoinRoom (mismo actor)
+            _client.AuthValues = new AuthenticationValues(PersistentUserId);
             _client.NickName = MPStateManager.Instance?.LocalPlayerName ?? MPConfig.DefaultPlayerName.Value;
+
+            // La carga de mundos grandes congela el hilo principal muchos segundos:
+            // ampliar el timeout evita cortes por "silencio" en cargas medianas.
+            try
+            {
+                var peer = _client.LoadBalancingPeer;
+                if (peer != null)
+                    peer.DisconnectTimeout = 120000;   // ms
+            }
+            catch (Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogWarning($"[Photon] No se pudo ampliar DisconnectTimeout: {ex.Message}");
+            }
+
             _isConnecting = true;
             _connectionTimeout = Time.time + 10f;
             if (!_client.ConnectToRegionMaster("eu"))
@@ -72,6 +115,50 @@ namespace CivilizameMP.Network
             {
                 _isConnecting = false;
                 OnDisconnectedEvent?.Invoke();
+            }
+
+            FlushOutbox();
+            TryReconnect();
+        }
+
+        /// <summary>Reconexión transparente durante una partida: vuelve a conectarse y
+        /// reentrar en la sala con el mismo UserId (mismo ActorNumber).</summary>
+        private void TryReconnect()
+        {
+            if (!_wantReconnect) return;
+
+            var st = MPStateManager.Instance;
+            bool inMatch = st != null && (st.CurrentState >= MPGameState.PlayingHost && st.CurrentState <= MPGameState.PlayingClient);
+            if (!inMatch) { _wantReconnect = false; return; }
+
+            if (_client != null && _client.InRoom)
+            {
+                _wantReconnect = false;
+                return;
+            }
+            if (Time.time < _nextReconnectAt) return;
+
+            _nextReconnectAt = Time.time + 5f;
+            CivilizameMPPlugin.Log.LogInfo("[Photon] Reintentando conexión...");
+            Connect(); // reconstruye el cliente y OnConnectedToMaster hará el rejoin
+        }
+
+        /// <summary>Envía lo que quedó en cola cuando la sala vuelve a estar disponible.</summary>
+        private void FlushOutbox()
+        {
+            if (_outbox.Count == 0) return;
+            if (_client == null || !_client.InRoom) return;
+
+            for (int i = _outbox.Count - 1; i >= 0; i--)
+            {
+                var o = _outbox[i];
+                int r = SendNow(o.Msg, o.Target);
+                if (r > 0)
+                {
+                    _outbox.RemoveAt(i);
+                    CivilizameMPPlugin.Log.LogInfo($"[Photon] Handoff en cola enviado al reconectar ({o.Msg.JueBytes?.Length} B -> actor {o.Target})");
+                }
+                if (r < 0) break; // sin sala otra vez: esperar al próximo ciclo
             }
         }
 
@@ -102,7 +189,10 @@ namespace CivilizameMP.Network
                     IsVisible = true,
                     IsOpen = true,
                     PublishUserId = true,
-                    EmptyRoomTtl = 0
+                    EmptyRoomTtl = 0,
+                    // Janela de rejoin: si la carga de un mapa grande corta la conexión,
+                    // el jugador puede reentrar con el mismo ActorNumber durante 2 min.
+                    PlayerTtl = 120000
                 }
             };
             _client.OpCreateRoom(opts);
@@ -126,36 +216,126 @@ namespace CivilizameMP.Network
             if (IsInRoom) _client.OpLeaveRoom(false);
         }
 
-        // Envia estado a TODOS (incluido el propio host, para que HostStateProcessor lo procese)
-        public void SendStateToAll(byte[] stateData)
+        /// <summary>
+        /// Envía un estado completo (turno) a un actor concreto. Con targetActor = -1
+        /// lo envía al MasterClient (el host). Si no estamos en sala, el mensaje
+        /// queda en COLA y se envía automáticamente al reconectar (devuelve
+        /// SEND_QUEUED). Devuelve el id de transferencia >= 0 si se envió, -1 si falló.
+        /// </summary>
+        public int SendHandoff(HandoffMessage msg, int targetActor)
         {
-            if (!IsInRoom || stateData == null) return;
-            int seq = GetNextSequence();
-            string hash = ComputeHash(stateData);
-            var payload = new Dictionary<string, object>
+            if (msg == null)
             {
-                { "data", stateData },
-                { "seq", seq },
-                { "hash", hash }
-            };
-            var opts = new RaiseEventOptions { Receivers = ReceiverGroup.All };
-            _client.OpRaiseEvent(STATE_EVENT, payload, opts, SendOptions.SendReliable);
+                CivilizameMPPlugin.Log.LogError("[Photon] SendHandoff: mensaje nulo");
+                return -1;
+            }
+            if (!IsInRoom)
+            {
+                _outbox.Add(new OutgoingHandoff { Msg = msg, Target = targetActor });
+                CivilizameMPPlugin.Log.LogInfo($"[Photon] Sin sala: handoff ({msg.JueBytes?.Length} B -> actor {targetActor}) en cola ({_outbox.Count}); se enviará al reconectar");
+                return SEND_QUEUED;
+            }
+            return SendNow(msg, targetActor);
         }
 
-        // Envia estado al HOST (usado por cliente cuando termina su turno)
-        public void SendStateToHost(byte[] stateData)
+        private int SendNow(HandoffMessage msg, int targetActor)
         {
-            if (!IsInRoom || stateData == null) return;
-            int seq = GetNextSequence();
-            string hash = ComputeHash(stateData);
-            var payload = new Dictionary<string, object>
+            if (!IsInRoom || msg == null)
+                return -1;
+
+            byte[] payload = msg.Serialize();
+            int fileId = ++_transferIdSeq;
+            int total = UnityEngine.Mathf.Max(1, (payload.Length + CHUNK_SIZE - 1) / CHUNK_SIZE);
+
+            var opts = new RaiseEventOptions();
+            if (targetActor >= 0) opts.TargetActors = new[] { targetActor };
+            else opts.Receivers = ReceiverGroup.MasterClient;
+
+            for (int i = 0; i < total; i++)
             {
-                { "data", stateData },
-                { "seq", seq },
-                { "hash", hash }
-            };
-            var opts = new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient };
-            _client.OpRaiseEvent(STATE_EVENT, payload, opts, SendOptions.SendReliable);
+                int offset = i * CHUNK_SIZE;
+                int len = UnityEngine.Mathf.Min(CHUNK_SIZE, payload.Length - offset);
+                byte[] chunk;
+                using (var ms = new MemoryStream(32 + len))
+                {
+                    using (var w = new BinaryWriter(ms))
+                    {
+                        w.Write(fileId);
+                        w.Write(i);
+                        w.Write(total);
+                        w.Write(payload.Length);
+                        w.Write(len);
+                        w.Write(payload, offset, len);
+                        w.Flush();
+                    }
+                    chunk = ms.ToArray();
+                }
+                _client.OpRaiseEvent(HANDOFF_CHUNK_EVENT, chunk, opts, SendOptions.SendReliable);
+            }
+
+            CivilizameMPPlugin.Log.LogInfo($"[Photon] Handoff enviado: {payload.Length} B en {total} chunk(s) -> actor {targetActor}");
+            return fileId;
+        }
+
+        private void HandleIncomingChunk(byte[] raw, int senderId)
+        {
+            try
+            {
+                int fileId, idx, total, payloadLen, chunkLen;
+                byte[] bytes;
+                using (var ms = new MemoryStream(raw))
+                using (var r = new BinaryReader(ms))
+                {
+                    fileId = r.ReadInt32();
+                    idx = r.ReadInt32();
+                    total = r.ReadInt32();
+                    payloadLen = r.ReadInt32();
+                    chunkLen = r.ReadInt32();
+                    bytes = r.ReadBytes(chunkLen);
+                }
+
+                if (fileId <= 0 || total <= 0 || idx < 0 || idx >= total)
+                {
+                    CivilizameMPPlugin.Log.LogWarning($"[Photon] Chunk inválido (file {fileId}, idx {idx}/{total})");
+                    return;
+                }
+
+                IncomingTransfer tr;
+                if (!_incoming.TryGetValue(fileId, out tr))
+                {
+                    if (_incoming.Count > 8) _incoming.Clear(); // purga de transferencias colgadas
+                    tr = new IncomingTransfer
+                    {
+                        TotalChunks = total,
+                        PayloadLength = payloadLen,
+                        Buffer = new byte[payloadLen],
+                        Got = new bool[total],
+                        Received = 0
+                    };
+                    _incoming[fileId] = tr;
+                }
+
+                if (tr.Got[idx]) return; // duplicado
+                int offset = idx * CHUNK_SIZE;
+                int len = UnityEngine.Mathf.Min(bytes.Length, tr.PayloadLength - offset);
+                Array.Copy(bytes, 0, tr.Buffer, offset, len);
+                tr.Got[idx] = true;
+                tr.Received++;
+
+                if (tr.Received < tr.TotalChunks) return;
+
+                _incoming.Remove(fileId);
+                var msg = HandoffMessage.Deserialize(tr.Buffer);
+                if (msg != null)
+                {
+                    CivilizameMPPlugin.Log.LogInfo($"[Photon] Handoff completo de actor {senderId}: {tr.PayloadLength} B (turno {msg.FromTurn} → {msg.LabelTurn})");
+                    OnHandoffReceived?.Invoke(msg, senderId);
+                }
+            }
+            catch (Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[Photon] Error ensamblando transferencia: {ex}");
+            }
         }
 
         public void SendConfig(string jsonConfig, int targetActorId = -1)
@@ -185,16 +365,6 @@ namespace CivilizameMP.Network
             return ++_stateSequence;
         }
 
-        public static string ComputeHash(byte[] data)
-        {
-            if (data == null) return string.Empty;
-            using (var md5 = MD5.Create())
-            {
-                var hash = md5.ComputeHash(data);
-                return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-            }
-        }
-
         public Room GetCurrentRoom()
         {
             return _client?.CurrentRoom;
@@ -212,6 +382,15 @@ namespace CivilizameMP.Network
         void IConnectionCallbacks.OnConnectedToMaster()
         {
             _isConnecting = false;
+
+            // Reconexión en curso: reentrar en la sala (mismo UserId → mismo actor)
+            if (_wantReconnect && !string.IsNullOrEmpty(_lastRoomName))
+            {
+                CivilizameMPPlugin.Log.LogInfo($"[Photon] Reconectado. Reentrando en la sala {_lastRoomName}...");
+                _client.OpRejoinRoom(_lastRoomName);
+                return;
+            }
+
             MPStateManager.Instance?.SetState(MPGameState.InMenu);
             OnConnectedToMasterEvent?.Invoke();
         }
@@ -219,6 +398,24 @@ namespace CivilizameMP.Network
         void IConnectionCallbacks.OnDisconnected(DisconnectCause cause)
         {
             _isConnecting = false;
+
+            var st = MPStateManager.Instance;
+            bool inMatch = st != null && (st.CurrentState == MPGameState.PlayingHost ||
+                                          st.CurrentState == MPGameState.PlayingClient);
+
+            if (inMatch && !string.IsNullOrEmpty(_lastRoomName))
+            {
+                // Corte durante la partida (p.ej. hilo principal congelado cargando el
+                // mundo). La partida sigue: reconexión transparente, el estado local
+                // queda intacto (PlayingHost/PlayingClient).
+                _wantReconnect = true;
+                _nextReconnectAt = Time.time + 3f;
+                CivilizameMPPlugin.Log.LogWarning($"[Photon] Desconexión durante la partida ({cause}). Reconectando/reentrando en {_lastRoomName}...");
+                CivilizameMP.UI.MPWaitingPanel.Instance?.SetStatus("RECONECTANDO",
+                    "Se perdió la conexión un momento.\nReentrando en la sala automáticamente...");
+                return;
+            }
+
             MPStateManager.Instance?.SetState(MPGameState.Disconnected);
             OnDisconnectedEvent?.Invoke();
         }
@@ -232,6 +429,10 @@ namespace CivilizameMP.Network
         {
             if (_client?.LocalPlayer == null) return;
             var state = MPStateManager.Instance;
+
+            _wantReconnect = false;
+            _lastRoomName = _client.CurrentRoom?.Name ?? _lastRoomName;
+
             state.LocalActorNumber = _client.LocalPlayer.ActorNumber;
             state.LocalPlayerName = _client.LocalPlayer.NickName;
             if (_client.CurrentRoom?.Players != null)
@@ -284,6 +485,15 @@ namespace CivilizameMP.Network
 
         void IMatchmakingCallbacks.OnJoinRoomFailed(short returnCode, string message)
         {
+            if (_wantReconnect)
+            {
+                // La sala ya no existe (p.ej. el host cerró el juego): rendirse limpio.
+                _wantReconnect = false;
+                CivilizameMPPlugin.Log.LogError($"[Photon] No se pudo reentrar en {_lastRoomName} ({returnCode}: {message}).");
+                MPStateManager.Instance.SetState(MPGameState.Disconnected);
+                return;
+            }
+
             MPStateManager.Instance.LastError = $"Join failed: {message}";
             OnJoinFailedEvent?.Invoke(returnCode, message);
             MPStateManager.Instance.SetState(MPGameState.Disconnected);
@@ -299,14 +509,9 @@ namespace CivilizameMP.Network
             int senderId = photonEvent.Sender;
             switch (photonEvent.Code)
             {
-                case STATE_EVENT:
-                    if (photonEvent.CustomData is Dictionary<string, object> statePayload)
-                    {
-                        var data = statePayload["data"] as byte[];
-                        int seq = Convert.ToInt32(statePayload["seq"]);
-                        string hash = statePayload["hash"] as string;
-                        OnStateReceived?.Invoke(data, seq, hash, senderId);
-                    }
+                case HANDOFF_CHUNK_EVENT:
+                    if (photonEvent.CustomData is byte[] chunkData)
+                        HandleIncomingChunk(chunkData, senderId);
                     break;
                 case CONFIG_EVENT:
                     if (photonEvent.CustomData is string configData)
@@ -325,8 +530,6 @@ namespace CivilizameMP.Network
                     if (photonEvent.CustomData is bool ready)
                     {
                         OnRemoteReadyEvent?.Invoke(photonEvent.Sender, ready);
-                        if (MPStateManager.Instance.IsHost && ready && HostManager.Instance != null)
-                            HostManager.Instance.OnClientReady(photonEvent.Sender, ready);
                     }
                     break;
             }

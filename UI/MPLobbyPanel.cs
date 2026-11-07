@@ -341,12 +341,23 @@ namespace CivilizameMP.UI
             }
             
             _gameStarting = true;
-            CivilizameMPPlugin.Log.LogInfo("[Host] Iniciando partida");
-            
+            CivilizameMPPlugin.Log.LogInfo("[Host] Sala lista: el host creara la partida con los menus originales del juego");
+
+            TurnController.Reset();
+            SetupSync.Reset();
+
+            // Los clientes entran en espera: el host va a configurar la partida con
+            // el panel ORIGINAL (Partida Nueva / Cargar Partida). Cuando el host pulse
+            // el INICIAR PARTIDA vanilla, SetupSync refleja su panel y, al cambiar la
+            // escena, HostManager sincroniza los asientos con todos.
             PhotonManager.Instance.SendConfigToAll("{\"hostStarting\":true}");
-            
-            MPPanelManager.Instance.HideCurrentPanel();
-            MPStateManager.Instance.SetState(MPGameState.PlayingHost);
+
+            // Estado de anfitrion activo (lo detectan los parches al cargar "Juego")
+            state.SetState(MPGameState.PlayingHost);
+
+            // Ocultar interfaz del mod: el host usa el menu vanilla libremente
+            MPWaitingPanel.Instance?.Hide();
+            MPPanelManager.Instance?.HideCurrentPanel();
         }
 
         private Color GetColorForSlot(int index)

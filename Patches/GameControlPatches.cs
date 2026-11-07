@@ -1,5 +1,6 @@
 using HarmonyLib;
 using CivilizameMP.Core;
+using CivilizameMP.Network;
 
 namespace CivilizameMP.Patches
 {
@@ -8,9 +9,11 @@ namespace CivilizameMP.Patches
     {
         private static bool ShouldBlockControl()
         {
-            if (!MPStateManager.Instance.IsMultiplayerActive) return false;
+            if (!StateHandoff.IsInGame()) return false;
             if (!MPMatchState.IsInitialized) return true;
-            return GameManager.Instance?.TurnOrder != MPMatchState.MiIndiceLocal;
+            var gm = GameManager.Instance;
+            if (gm == null) return false;
+            return gm.TurnOrder != MPMatchState.MiIndiceLocal;
         }
         
         [HarmonyPatch("Move")]
