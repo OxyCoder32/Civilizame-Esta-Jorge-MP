@@ -346,10 +346,6 @@ namespace CivilizameMP.UI
             TurnController.Reset();
             SetupSync.Reset();
 
-            // Los clientes entran en espera: el host va a configurar la partida con
-            // el panel ORIGINAL (Partida Nueva / Cargar Partida). Cuando el host pulse
-            // el INICIAR PARTIDA vanilla, SetupSync refleja su panel y, al cambiar la
-            // escena, HostManager sincroniza los asientos con todos.
             PhotonManager.Instance.SendConfigToAll("{\"hostStarting\":true}");
 
             // Estado de anfitrion activo (lo detectan los parches al cargar "Juego")
