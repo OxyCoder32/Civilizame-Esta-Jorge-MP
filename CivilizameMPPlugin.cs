@@ -50,6 +50,9 @@ namespace CivilizameMP
             panelObj.AddComponent<MPPanelManager>();
             DontDestroyOnLoad(panelObj);
 
+            // Canal en vivo: crea ya el runner que rutea los eventos LIVE.
+            LiveSync.EnsureRunner();
+
             Logger.LogInfo("CivilizameMP inicializado correctamente");
         }
 

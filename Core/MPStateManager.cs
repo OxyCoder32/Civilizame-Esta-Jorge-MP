@@ -164,15 +164,25 @@ namespace CivilizameMP.Core
         {
             if (CurrentState == MPGameState.PlayingHost || CurrentState == MPGameState.PlayingClient)
             {
-                ConvertPlayerToAI(actorNumber);
+                // En partida NO se convierte a IA ni se borra el asiento: el
+                // slot se CONSERVA con su ActorNumber para que el jugador
+                // vuelva a reclamarlo (resync). Si sigue ausente, el ciclo de
+                // turnos salta su turno tras el grace (TrySkipAbsentAwaited).
+                if (ConnectedPlayers.TryGetValue(actorNumber, out var config))
+                {
+                    config.IsConnected = false;
+                    config.IsReady = false;
+                    CivilizameMPPlugin.Log.LogWarning(
+                        $"[MPState] Jugador desconectado en partida: slot {config.SlotIndex} se conserva para su regreso");
+                }
                 return;
             }
 
             // Antes de empezar la partida sí se puede limpiar el slot
             if (!ConnectedPlayers.ContainsKey(actorNumber)) return;
 
-            var config = ConnectedPlayers[actorNumber];
-            int slotIndex = config.SlotIndex;
+            var cfg = ConnectedPlayers[actorNumber];
+            int slotIndex = cfg.SlotIndex;
 
             ConnectedPlayers.Remove(actorNumber);
 
@@ -197,7 +207,7 @@ namespace CivilizameMP.Core
                 LocalActorNumber = -1;
             }
 
-            CivilizameMPPlugin.Log.LogInfo($"[MPState] Jugador desregistrado: {config.PlayerName}");
+            CivilizameMPPlugin.Log.LogInfo($"[MPState] Jugador desregistrado: {cfg.PlayerName}");
         }
         
         public PlayerSlotConfig GetPlayerSlot(int actorNumber)

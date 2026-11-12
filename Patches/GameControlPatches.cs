@@ -11,6 +11,13 @@ namespace CivilizameMP.Patches
         {
             if (!StateHandoff.IsInGame()) return false;
             if (!MPMatchState.IsInitialized) return true;
+            // Espectador: el cliente ya envió su turno y está viendo en directo.
+            if (LiveSync.Spectating) return true;
+            // Host esperando el estado de un cliente: su turno ya terminó.
+            if (TurnController.AwaitingClientTurn) return true;
+            // Host esperando la confirmación de carga de los clientes: el ciclo
+            // no arrancó aún; nadie mueve nada antes de tiempo.
+            if (TurnController.IsWaitingClients) return true;
             var gm = GameManager.Instance;
             if (gm == null) return false;
             return gm.TurnOrder != MPMatchState.MiIndiceLocal;

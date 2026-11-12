@@ -5,7 +5,6 @@ using ExitGames.Client.Photon;
 using Photon.Realtime;
 using UnityEngine;
 using CivilizameMP.Core;
-
 namespace CivilizameMP.Network
 {
     public class PhotonManager : MonoBehaviour, IConnectionCallbacks, IMatchmakingCallbacks, IInRoomCallbacks, IOnEventCallback, ILobbyCallbacks
@@ -32,14 +31,20 @@ namespace CivilizameMP.Network
         private const byte CONFIG_EVENT = 2;
         private const byte READY_EVENT = 3;
         private const byte HANDOFF_CHUNK_EVENT = 4;
+        private const byte LIVE_EVENT = 5;
+
+        /// <summary>Eventos en vivo (movimientos, ataques...) del canal LiveSync.</summary>
+        public event Action<byte[], int> OnLiveEvent;
 
         private const int CHUNK_SIZE = 24000; // dentro del límite de eventos UDP de Photon
 
         /// <summary>Respuesta de SendHandoff: el mensaje quedó en cola y se enviará al reconectar.</summary>
         public const int SEND_QUEUED = -2;
 
-        /// <summary>UserId fijo de esta sesión de juego: imprescindible para el rejoin.</summary>
-        private static readonly string PersistentUserId = Guid.NewGuid().ToString();
+        // UserId único por instancia de juego. NO usamos PlayerPrefs compartido
+        // porque host y cliente en la misma máquina colisionarían ("UserId already joined").
+        // Cada instancia genera su propio GUID al despertar.
+        private string _persistentUserId;
 
         private class OutgoingHandoff { public HandoffMessage Msg; public int Target; }
         private readonly List<OutgoingHandoff> _outbox = new List<OutgoingHandoff>();
@@ -69,6 +74,11 @@ namespace CivilizameMP.Network
             if (Instance != null) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
+
+            // UserId único por instancia de juego. NO usamos PlayerPrefs compartido
+            // porque host y cliente en la misma máquina colisionarían ("UserId already joined").
+            // Cada instancia genera su propio GUID al despertar (Core/MPIdentity.cs).
+            _persistentUserId = MPIdentity.InstanceId;
         }
 
         public void Connect()
@@ -86,7 +96,7 @@ namespace CivilizameMP.Network
             _client.AppId = appId;
             _client.AppVersion = MPConstants.GAME_VERSION;
             // UserId persistente por sesión: necesario para OpRejoinRoom (mismo actor)
-            _client.AuthValues = new AuthenticationValues(PersistentUserId);
+            _client.AuthValues = new AuthenticationValues(_persistentUserId);
             _client.NickName = MPStateManager.Instance?.LocalPlayerName ?? MPConfig.DefaultPlayerName.Value;
 
             // La carga de mundos grandes congela el hilo principal muchos segundos:
@@ -338,6 +348,25 @@ namespace CivilizameMP.Network
             }
         }
 
+        /// <summary>
+        /// Envía un evento en vivo del canal LiveSync. Los eventos en vivo son
+        /// EFÍMEROS: si no hay sala se descartan (no encolan: el estado de verdad
+        /// llega siempre por el handoff completo).
+        /// toOthers=true → broadcast a todos menos a uno mismo (host relaying);
+        /// toOthers=false → solo al MasterClient (cliente → host).
+        /// </summary>
+        public bool SendLiveEvent(byte[] payload, bool toOthers)
+        {
+            if (_client == null || !_client.InRoom || payload == null || payload.Length == 0)
+                return false;
+            var opts = new RaiseEventOptions
+            {
+                Receivers = toOthers ? ReceiverGroup.Others : ReceiverGroup.MasterClient
+            };
+            _client.OpRaiseEvent(LIVE_EVENT, payload, opts, SendOptions.SendReliable);
+            return true;
+        }
+
         public void SendConfig(string jsonConfig, int targetActorId = -1)
         {
             if (!IsInRoom) return;
@@ -531,6 +560,10 @@ namespace CivilizameMP.Network
                     {
                         OnRemoteReadyEvent?.Invoke(photonEvent.Sender, ready);
                     }
+                    break;
+                case LIVE_EVENT:
+                    if (photonEvent.CustomData is byte[] livePayload)
+                        OnLiveEvent?.Invoke(livePayload, senderId);
                     break;
             }
         }

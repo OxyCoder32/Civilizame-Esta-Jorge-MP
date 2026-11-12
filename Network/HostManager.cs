@@ -8,19 +8,10 @@ using CivilizameMP.UI;
 
 namespace CivilizameMP.Network
 {
-    /// <summary>
-    /// Lado host del flujo de turnos. El host es al mismo tiempo "servidor" y
-    /// jugador normal:
-    ///  - Prepara y envía la config de slots cuando su partida vanilla arranca.
-    ///  - Cuando un cliente devuelve su turno terminado, TurnController valida el
-    ///    turno/seq y este restaura el estado con la recarga vanilla; el juego
-    ///    avanza solo (IA vanilla incluida) y la cadena de turnos sigue.
-    /// </summary>
     public class HostManager : MonoBehaviour
     {
         public static HostManager Instance { get; private set; }
         public bool IsGeneratingWorld => _isGenerating;
-        /// <summary>True cuando la partida ya existe y la config de asientos fue enviada.</summary>
         public bool MatchStarted => _gameStarted;
 
         private bool _isGenerating;
@@ -32,40 +23,66 @@ namespace CivilizameMP.Network
             if (Instance != null) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
-
-            // NOTA: los handoff entrantes NO se enrutan desde aquí. ClientManager ya
-            // está suscrito y llama a TurnController.HandleIncomingHandoff, que
-            // reparte según IsHost/IsClient. Duplicar la suscripción procesaba cada
-            // estado DOS VECES en el host (doble restauración => el estado no se
-            // aplicaba y el host se quedaba colgado).
-            PhotonManager.Instance.OnPlayerLeftEvent += OnPlayerLeft;
         }
 
-        private void Start()
+        void Start()
         {
             if (!_initialized)
             {
                 SceneManager.sceneLoaded += OnSceneLoaded;
                 _initialized = true;
             }
+
+            var pm = PhotonManager.Instance;
+            if (pm != null)
+            {
+                pm.OnPlayerLeftEvent += OnPlayerLeft;
+                pm.OnMasterClientSwitchedEvent += OnMasterClientSwitched;
+            }
         }
 
         void OnDestroy()
         {
             SceneManager.sceneLoaded -= OnSceneLoaded;
-            if (PhotonManager.Instance != null)
-                PhotonManager.Instance.OnPlayerLeftEvent -= OnPlayerLeft;
+            var pm = PhotonManager.Instance;
+            if (pm != null)
+            {
+                pm.OnPlayerLeftEvent -= OnPlayerLeft;
+                pm.OnMasterClientSwitchedEvent -= OnMasterClientSwitched;
+            }
         }
-        // ------------------------------------------------------------------
-        //  Desconexiones
-        // ------------------------------------------------------------------
-
         private void OnPlayerLeft(Photon.Realtime.Player player)
         {
             var state = MPStateManager.Instance;
             if (!state.IsHost) return;
             TurnController.OnClientDisconnected(player.ActorNumber);
             CivilizameMPPlugin.Log.LogWarning($"[Host] Jugador desconectado: {player?.NickName}. Su slot quedará gestionado por el estado del juego.");
+        }
+
+        private void OnMasterClientSwitched(bool isMaster)
+        {
+            var state = MPStateManager.Instance;
+            if (state == null) return;
+
+            if (isMaster && state.IsHost) return;
+
+            if (!isMaster && state.IsHost)
+            {
+                CivilizameMPPlugin.Log.LogWarning("[Host] Ya no somos el master client.");
+                state.IsHost = false;
+                state.IsClient = true;
+                TurnController.CancelAwaitingNoResume();
+                return;
+            }
+
+            if (isMaster && !state.IsHost && StateHandoff.IsInGame())
+            {
+                CivilizameMPPlugin.Log.LogWarning("[HostMigration] Somos el nuevo MasterClient. Asumiendo el rol de host...");
+                state.IsHost = true;
+                state.IsClient = false;
+                state.SetState(MPGameState.PlayingHost);
+                TurnController.OnBecameHost();
+            }
         }
 
         // ------------------------------------------------------------------
@@ -78,7 +95,10 @@ namespace CivilizameMP.Network
             {
                 // Vuelve al menú: permitir una nueva partida en la siguiente sesión.
                 if (scene.name == MPConstants.MENU_SCENE)
+                {
                     _gameStarted = false;
+                    LiveSync.Reset(); // oculta el HUD en vivo y limpia el canal
+                }
                 return;
             }
             if (!StateHandoff.IsInGame()) return;
@@ -120,6 +140,10 @@ namespace CivilizameMP.Network
             _gameStarted = true;
 
             MPStateManager.Instance.SetState(MPGameState.PlayingHost);
+
+            // Nueva partida: limpieza del canal en vivo y del estado del flujo.
+            LiveSync.Reset();
+            TurnController.Reset();
 
             // Los asientos ya no salen del lobby: se empareja cada humano (orden de
             // llegada a la sala) con los slots que el host marcó como reales en su
@@ -342,10 +366,5 @@ namespace CivilizameMP.Network
             return sb.ToString();
         }
 
-        // ------------------------------------------------------------------
-        //  Recepción de estados: la realiza ClientManager (TurnController).
-        //  Este manager solo gestiona config/deconexiones para evitar duplicar
-        //  el procesado de handoffs en el host.
-        // ------------------------------------------------------------------
     }
 }

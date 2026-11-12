@@ -24,6 +24,13 @@ namespace CivilizameMP.Network
         public static bool VanillaAutosaveAllowed;
         /// <summary>Etiqueta de TurnOrder que debe llevar el GameSave que se está creando.</summary>
         public static int PendingSaveLabel = -1;
+        /// <summary>TurnOrder que debe restaurarse tras recargar la escena (supervive al reset de MundoCargado(false) en GameManager.Awake).</summary>
+        public static int PendingTurnOrderAfterLoad = -1;
+        /// <summary>Carga en MODO ESPEJO (cliente): TurnOrder = etiqueta tal cual
+        /// (turno ya en curso en la PC que actúa) y SIN NextTurn: los efectos
+        /// del turno activo llegan por eventos en vivo. La pone ClientManager
+        /// al aceptar un estado y la consume el parche de MundoCargado.</summary>
+        public static bool MirrorLoad;
 
         /// <summary>Magic + versión del payload binario del handoff.</summary>
         public const int PAYLOAD_MAGIC = 0x4D505348;   // "HSPM" (Handoff State PayLoad Magic)
@@ -81,9 +88,13 @@ namespace CivilizameMP.Network
                 info.GuardadoSeguridad();
                 if (Tablero.Instance != null) Tablero.Instance.GuardadoSeg();
 
-                byte[] jue = File.ReadAllBytes(SavePath);
-                mapBytes = File.Exists(MapPath) ? File.ReadAllBytes(MapPath) : new byte[0];
-                CivilizameMPPlugin.Log.LogInfo($"[StateHandoff] Estado guardado: {jue.Length} B + mapa {mapBytes.Length} B (etiqueta turno {labelTraffic})");
+                // COMPRESIÓN GZip: el estado va por red y las conexiones malas
+                // sufren; el binario serializado y el mapa de texto se comprimen
+                // ~70-80% (el receptor lo detecta por la cabecera 1F 8B).
+                byte[] jue = GzipMaybe(File.ReadAllBytes(SavePath));
+                mapBytes = File.Exists(MapPath)
+                    ? GzipMaybe(File.ReadAllBytes(MapPath)) : new byte[0];
+                CivilizameMPPlugin.Log.LogInfo($"[StateHandoff] Estado guardado (GZip): {jue.Length} B + mapa {mapBytes.Length} B (etiqueta turno {labelTraffic})");
                 return jue;
             }
             catch (Exception ex)
@@ -98,11 +109,54 @@ namespace CivilizameMP.Network
             }
         }
 
-        /// <summary>Escribe los archivos de estado recibidos por red en el disco.</summary>
+        /// <summary>Comprime con GZip (deja el array tal cual si no reduce).</summary>
+        private static byte[] GzipMaybe(byte[] raw)
+        {
+            if (raw == null || raw.Length < 64) return raw;
+            try
+            {
+                using (var src = new MemoryStream(raw))
+                using (var dst = new MemoryStream(raw.Length))
+                {
+                    using (var gz = new System.IO.Compression.GZipStream(dst, System.IO.Compression.CompressionLevel.Fastest))
+                        src.CopyTo(gz);
+                    byte[] outb = dst.ToArray();
+                    return outb.Length < raw.Length ? outb : raw;
+                }
+            }
+            catch { return raw; }
+        }
+
+        /// <summary>Descomprime si el array tiene cabecera GZip (1F 8B).</summary>
+        private static byte[] GzipUnwrap(byte[] data)
+        {
+            if (data == null || data.Length < 2 || data[0] != 0x1F || data[1] != 0x8B)
+                return data;
+            try
+            {
+                using (var src = new MemoryStream(data))
+                using (var gz = new System.IO.Compression.GZipStream(src, System.IO.Compression.CompressionMode.Decompress))
+                using (var dst = new MemoryStream())
+                {
+                    gz.CopyTo(dst);
+                    return dst.ToArray();
+                }
+            }
+            catch (Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogError($"[StateHandoff] Error descomprimiendo GZip: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Escribe los archivos de estado recibidos por red en el disco
+        /// (descomprimiendo si llegaron con GZip).</summary>
         public static bool WriteStateFiles(byte[] jueBytes, byte[] mapBytes)
         {
             try
             {
+                jueBytes = GzipUnwrap(jueBytes);
+                mapBytes = GzipUnwrap(mapBytes);
                 if (jueBytes == null || jueBytes.Length == 0)
                 {
                     CivilizameMPPlugin.Log.LogError("[StateHandoff] .jue vacío al escribir estado");

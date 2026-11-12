@@ -34,6 +34,15 @@ namespace CivilizameMP.UI
         private bool _isInitialized;
         private Canvas _panelCanvas;
 
+        // --- HUD en vivo (no bloqueante) ---------------------------------
+        // Barra pequeña arriba: "Turno de X / viendo en directo". Vive como
+        // objeto SEPARADO del panel para que pueda mostrarse con el cartel de
+        // espera desactivado (modo espectador, host esperando cliente...).
+        private GameObject _hudRoot;
+        private TextMeshProUGUI _hudMain;
+        private TextMeshProUGUI _hudSub;
+        private bool _hudInitialized;
+
         private void Awake()
         {
             if (_instance != null && _instance != this)
@@ -168,6 +177,66 @@ namespace CivilizameMP.UI
                 _subText.text = subText;
         }
 
+        // ------------------------------------------------------------------
+        //  HUD en vivo (no bloqueante)
+        // ------------------------------------------------------------------
+
+        /// <summary>Muestra la barrita superior de "Turno de X (en vivo)".
+        /// NO bloquea input ni tapa el mapa: el espectador sigue moviendo la
+        /// cámara mientras los demás juegan (estilo Civilization). Es
+        /// independiente del cartel completo de espera (Show/Hide).</summary>
+        public void ShowHUD(string mainText, string subText = null)
+        {
+            if (!_hudInitialized) BuildHUD();
+            if (_hudRoot == null) return;
+
+            if (_hudMain != null) _hudMain.text = mainText;
+            if (_hudSub != null) _hudSub.text = subText ?? "";
+            _hudRoot.SetActive(true);
+        }
+
+        public void HideHUD()
+        {
+            if (_hudRoot != null)
+                _hudRoot.SetActive(false);
+        }
+
+        private void BuildHUD()
+        {
+            if (_hudInitialized) return;
+            _hudInitialized = true;
+
+            _hudRoot = new GameObject("MPWait_HUD");
+            UnityEngine.Object.DontDestroyOnLoad(_hudRoot);
+            _hudRoot.SetActive(false);
+
+            var canvas = _hudRoot.AddComponent<Canvas>();
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 15; // debajo del cartel completo (20)
+            _hudRoot.AddComponent<UnityEngine.UI.CanvasScaler>();
+
+            var bar = new GameObject("Bar");
+            bar.transform.SetParent(_hudRoot.transform, false);
+            var barImg = bar.AddComponent<Image>();
+            barImg.color = new Color(0f, 0f, 0f, 0.65f);
+            barImg.raycastTarget = false;
+
+            var barRect = bar.GetComponent<RectTransform>();
+            barRect.anchorMin = new Vector2(0.5f, 1f);
+            barRect.anchorMax = new Vector2(0.5f, 1f);
+            barRect.pivot = new Vector2(0.5f, 1f);
+            barRect.anchoredPosition = new Vector2(0, -8);
+            barRect.sizeDelta = new Vector2(520, 56);
+
+            _hudMain = CreateLabel("", bar.transform, new Vector2(0, 6), 22);
+            _hudMain.color = new Color(0.95f, 0.95f, 0.95f, 1f);
+            _hudMain.rectTransform.sizeDelta = new Vector2(500, 26);
+
+            _hudSub = CreateLabel("", bar.transform, new Vector2(0, -16), 13);
+            _hudSub.color = new Color(0.7f, 0.7f, 0.7f, 1f);
+            _hudSub.rectTransform.sizeDelta = new Vector2(500, 18);
+        }
+
         private IEnumerator SpinSpinner()
         {
             while (_isSpinning && _spinnerImage != null)
@@ -223,6 +292,8 @@ namespace CivilizameMP.UI
             _isSpinning = false;
             if (_instance == this)
                 _instance = null;
+            if (_hudRoot != null)
+                UnityEngine.Object.Destroy(_hudRoot);
         }
     }
 }
