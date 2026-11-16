@@ -11,7 +11,7 @@ namespace CivilizameMP.Core
     /// actualizador y el chequeo de versiones no detectarán el cambio.</summary>
     public static class ModVersion
     {
-        public const string VERSION = "1.0.0";
+        public const string VERSION = "1.0.1";
 
         public static string Current { get; } = Resolve();
 
