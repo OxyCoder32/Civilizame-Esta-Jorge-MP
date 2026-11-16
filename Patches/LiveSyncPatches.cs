@@ -227,7 +227,13 @@ namespace CivilizameMP.Patches
             TurnController.OnStartTurnRan(gm.TurnOrder);
             LiveSync.SendTurnStart(gm.TurnOrder);
             var jug = gm.Jug();
-            if (jug != null) LiveSync.SendRes(jug);
+            if (jug != null)
+            {
+                LiveSync.SendRes(jug);
+                // Snapshot absoluto de unidades al ARRANCAR el turno: las
+                // demás copias reconcilian y auto-reparan divergencias.
+                LiveSync.SendUnitSync(jug);
+            }
         }
 
         // ---------------- Jugador.SkipTurn (recursos al cerrar turno) --------
@@ -239,6 +245,9 @@ namespace CivilizameMP.Patches
             // Totales al cerrar el turno (compras, ediciones y demás cambios
             // hechos durante el turno) para que el resto de copias converja.
             LiveSync.SendRes(__instance);
+            // Snapshot absoluto al CERRAR el turno: estado final autoritativo
+            // de su tabla de unidades (cura spawns perdidos y fantasmas).
+            LiveSync.SendUnitSync(__instance);
         }
 
         // ---------------- RelationshipManager: diplomacia en vivo ------------

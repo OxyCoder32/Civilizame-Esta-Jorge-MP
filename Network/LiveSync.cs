@@ -102,7 +102,12 @@ namespace CivilizameMP.Network
         public const byte EV_UNIT_REL = 22;
         public const byte EV_CITY_RELS = 23;
         public const byte EV_PLAYER_DEAD = 24;
-        public const byte EV_LAST = EV_PLAYER_DEAD;
+        /// <summary>Snapshot ABSOLUTO de la tabla de unidades de UN jugador,
+        /// emitido por la PC que dirige su StartTurn/SkipTurn. Las demás
+        /// copias reconcilian (spawn de faltantes, borrado de fantasmas)
+        /// y auto-reparan cualquier divergencia acumulada.</summary>
+        public const byte EV_UNIT_SYNC = 25;
+        public const byte EV_LAST = EV_UNIT_SYNC;
 
         /// <summary>Nombre corto del opcode para los logs de diagnóstico.</summary>
         internal static string NameOf(byte ev)
@@ -134,6 +139,7 @@ namespace CivilizameMP.Network
                 case EV_UNIT_REL: return "UNIT_REL";
                 case EV_CITY_RELS: return "CITY_RELS";
                 case EV_PLAYER_DEAD: return "PLAYER_DEAD";
+                case EV_UNIT_SYNC: return "UNIT_SYNC";
                 default: return "?" + ev;
             }
         }
@@ -701,6 +707,42 @@ namespace CivilizameMP.Network
             });
         }
 
+        /// <summary>Snapshot ABSOLUTO de la tabla de unidades de un jugador.
+        /// Se emite al arrancar y al cerrar SU turno (StartTurn/SkipTurn):
+        /// el receptor reconcilia faltantes (spawn) y fantasmas (delete) y
+        /// auto-repara divergencias acumuladas sin recargar estado.</summary>
+        public static void SendUnitSync(Jugador jug)
+        {
+            if (jug == null) return;
+            int owner = SlotOfPlayer(jug);
+            if (owner < 0) return;
+            int n = Math.Min(jug.maxUnidad, jug.Unidades != null ? jug.Unidades.Length : 0);
+            var list = new List<Unidad>();
+            for (int i = 0; i < n; i++)
+                if (jug.Unidades[i] != null) list.Add(jug.Unidades[i]);
+            Send(w =>
+            {
+                w.Write(EV_UNIT_SYNC);
+                w.Write(owner);
+                w.Write(list.Count);
+                foreach (var u in list)
+                {
+                    w.Write(u.posX); w.Write(u.posY);
+                    w.Write(u.FuerzaIni);
+                    w.Write(u.MovimientoMax);
+                    w.Write(u.MovLeft);
+                    w.Write(u.VidaLeft);
+                    w.Write(u.Turno);
+                    w.Write(u.BuildThings);
+                    w.Write(u.PactFuerza);
+                    w.Write(u.PactBuildThings);
+                    w.Write(u.myRel);
+                    w.Write((int)u.Tipo);
+                    w.Write(u.gameObject != null ? u.gameObject.name : "");
+                }
+            });
+        }
+
         public static void SendTribuTaken(int x, int y)
         {
             Send(w =>
@@ -1192,6 +1234,13 @@ namespace CivilizameMP.Network
                         string prefabName = r.ReadString();
                         ApplyUnitSpawn(owner, x, y, fuerza, movMax, movLeft, vidaLeft,
                             turno, buildThings, pactFuerza, pactBuild, rel, tipo, prefabName);
+                        break;
+                    }
+
+                    case EV_UNIT_SYNC:
+                    {
+                        int owner = r.ReadInt32();
+                        ApplyUnitSync(owner, r);
                         break;
                     }
 
@@ -1901,6 +1950,110 @@ namespace CivilizameMP.Network
         private static readonly Dictionary<string, GameObject> _fxCache =
             new Dictionary<string, GameObject>();
         private static FieldInfo[] _unitScriptables;
+        private static FieldInfo[] _creatorUnitFields;
+
+        /// <summary>Campos UnitScriptable del PlayerCreator. AHÍ viven las
+        /// unidades únicas por líder (Ovni de Bingo, Trineo de Skipper,
+        /// MotoBug de Eggman, Jaguar, Hondero, Apostol, Lanzaguisantes,
+        /// Youtuber, Streamer) y su CanUnit base: NO están en UnitGenerator,
+        /// por eso el resolver antiguo fallaba con "prefab no encontrado".</summary>
+        private static FieldInfo[] PlayerCreatorUnitFields()
+        {
+            if (_creatorUnitFields != null) return _creatorUnitFields;
+            var gm = GameManager.Instance;
+            if (gm == null || gm.playerCreator == null) return null;
+            var list = new List<FieldInfo>();
+            foreach (var f in typeof(PlayerCreator).GetFields(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance))
+                if (typeof(UnitScriptable).IsAssignableFrom(f.FieldType) ||
+                    f.FieldType == typeof(UnitScriptable[])) // CanUnit
+                    list.Add(f);
+            _creatorUnitFields = list.ToArray();
+            return _creatorUnitFields;
+        }
+
+        /// <summary>Todas las UnitScriptable alcanzables en esta copia:
+        /// UnitGenerator + PlayerCreator + el CanUnit de CADA jugador
+        /// (público, crece con las tecnologías desbloqueadas). El CanUnit
+        /// se escanea en vivo porque cambia durante la partida.</summary>
+        private static List<UnitScriptable> AllUnitCandidates()
+        {
+            var cands = new List<UnitScriptable>();
+            var gm = GameManager.Instance;
+            if (gm == null) return cands;
+
+            void Add(UnitScriptable sc)
+            {
+                if (sc != null && !cands.Contains(sc)) cands.Add(sc);
+            }
+
+            var ugFields = UnitScriptableFields();
+            if (ugFields != null && gm.unitGenerator != null)
+                foreach (var f in ugFields)
+                    Add(f.GetValue(gm.unitGenerator) as UnitScriptable);
+
+            var pcFields = PlayerCreatorUnitFields();
+            if (pcFields != null && gm.playerCreator != null)
+                foreach (var f in pcFields)
+                {
+                    if (f.FieldType == typeof(UnitScriptable[]))
+                    {
+                        var arr = f.GetValue(gm.playerCreator) as UnitScriptable[];
+                        if (arr != null) foreach (var sc in arr) Add(sc);
+                    }
+                    else Add(f.GetValue(gm.playerCreator) as UnitScriptable);
+                }
+
+            if (gm.jugadores != null)
+                foreach (var j in gm.jugadores)
+                {
+                    if (j == null || j.CanUnit == null) continue;
+                    foreach (var sc in j.CanUnit) Add(sc);
+                }
+            return cands;
+        }
+
+        /// <summary>Casamiento por nombre de prefab (con y sin "(Clone)") y,
+        /// si hay varias variantes con el mismo nombre, por Tipo de unidad.</summary>
+        private static UnitScriptable MatchUnitByPrefab(
+            List<UnitScriptable> cands, string rawName, int tipo)
+        {
+            if (cands == null || cands.Count == 0 || string.IsNullOrEmpty(rawName)) return null;
+            string clean = rawName.Replace("(Clone)", "").Trim();
+
+            UnitScriptable match = null;
+            int nameMatches = 0;
+            foreach (var sc in cands)
+            {
+                if (sc == null) continue;
+                string pn = sc.Prefab != null ? sc.Prefab.name : null;
+                string iname = sc.imagen != null ? sc.imagen.name : null;
+                if (pn == rawName || iname == rawName || pn == clean || iname == clean)
+                {
+                    match = sc;
+                    nameMatches++;
+                }
+            }
+            if (match == null || match.Prefab == null) return null;
+
+            // Desambiguación por TIPO: varias unidades pueden compartir nombre
+            // de prefab (distintas eras/variantes) y el primer match daba la
+            // unidad equivocada. El prefab real lleva su Tipo en el componente.
+            if (nameMatches > 1 && tipo >= 0)
+            {
+                var want = (Unidad.TipoUnidad)tipo;
+                foreach (var sc in cands)
+                {
+                    if (sc == null || sc.Prefab == null) continue;
+                    string pn = sc.Prefab != null ? sc.Prefab.name : null;
+                    string iname = sc.imagen != null ? sc.imagen.name : null;
+                    if (!(pn == rawName || iname == rawName || pn == clean || iname == clean))
+                        continue;
+                    var comp = sc.Prefab.GetComponent<Unidad>();
+                    if (comp != null && comp.Tipo == want) return sc;
+                }
+            }
+            return match;
+        }
 
         private static GameObject ResolveFxPrefab(string fxName)
         {
@@ -1937,25 +2090,17 @@ namespace CivilizameMP.Network
         }
 
         /// <summary>Resuelve un UnitScriptable por nombre de prefab (limpia
-        /// el sufijo "(Clone)" de los nombres de instancia).</summary>
+        /// el sufijo "(Clone)" de los nombres de instancia) sobre TODAS las
+        /// fuentes del juego: UnitGenerator, PlayerCreator (unidades por
+        /// líder: Ovni, Trineo, MotoBug...) y el CanUnit de cada jugador.</summary>
         private static UnitScriptable FindUnitScriptableByName(string nombre)
         {
             if (string.IsNullOrEmpty(nombre)) return null;
-            var fields = UnitScriptableFields();
-            if (fields == null) return null;
-            var gm = GameManager.Instance;
-            if (gm?.unitGenerator == null) return null;
-            string clean = nombre.Replace("(Clone)", "").Trim();
-            foreach (var f in fields)
-            {
-                var sc = f.GetValue(gm.unitGenerator) as UnitScriptable;
-                if (sc == null) continue;
-                if (sc.Prefab != null && (sc.Prefab.name == nombre || sc.Prefab.name == clean))
-                    return sc;
-                if (sc.imagen != null && (sc.imagen.name == nombre || sc.imagen.name == clean))
-                    return sc;
-            }
-            return null;
+            var m = MatchUnitByPrefab(AllUnitCandidates(), nombre, -1);
+            if (m == null)
+                CivilizameMPPlugin.Log.LogWarning(
+                    $"[LiveSync] UnitScriptable '{nombre}' no encontrado en ninguna fuente");
+            return m;
         }
 
         private static void ApplyUnitSpawn(int owner, int x, int y, int fuerza, int movMax,
@@ -1968,75 +2113,117 @@ namespace CivilizameMP.Network
 
             var jug = JugFor(owner);
             if (jug == null) return;
-            var fields = UnitScriptableFields();
-            if (fields == null) return;
             var gm = GameManager.Instance;
             if (gm == null || gm.unitGenerator == null) return;
 
-            UnitScriptable match = null;
-            int nameMatches = 0;
-            foreach (var f in fields)
-            {
-                var sc = f.GetValue(gm.unitGenerator) as UnitScriptable;
-                if (sc == null) continue;
-                if ((sc.Prefab != null && sc.Prefab.name == prefabName) ||
-                    (sc.imagen != null && sc.imagen.name == prefabName))
-                {
-                    match = sc;
-                    nameMatches++;
-                }
-            }
+            var match = MatchUnitByPrefab(AllUnitCandidates(), prefabName, tipo);
             if (match == null || match.Prefab == null)
             {
-                // Los nombres de instancia llevan "(Clone)": quitar el sufijo
-                // y reintentar antes de rendirse.
-                string clean = prefabName != null ? prefabName.Replace("(Clone)", "").Trim() : null;
-                if (!string.IsNullOrEmpty(clean))
-                {
-                    match = null; nameMatches = 0;
-                    foreach (var f in fields)
-                    {
-                        var sc = f.GetValue(gm.unitGenerator) as UnitScriptable;
-                        if (sc == null) continue;
-                        if ((sc.Prefab != null && sc.Prefab.name == clean) ||
-                            (sc.imagen != null && sc.imagen.name == clean))
-                        {
-                            match = sc;
-                            nameMatches++;
-                        }
-                    }
-                }
-            }
-            if (match == null || match.Prefab == null)
-            {
-                CivilizameMPPlugin.Log.LogWarning($"[LiveSync] UnidadSpawn: prefab '{prefabName}' no encontrado");
+                // Diagnóstico rico: nombre + Tipo + cuántos candidatos había,
+                // para detectar unidades que faltan en las fuentes.
+                CivilizameMPPlugin.Log.LogWarning(
+                    $"[LiveSync] UnidadSpawn: prefab '{prefabName}' (Tipo={(Unidad.TipoUnidad)tipo}) " +
+                    $"no encontrado en {AllUnitCandidates().Count} candidatos");
                 return;
-            }
-            // Desambiguación por TIPO: varias unidades pueden compartir nombre
-            // de prefab (distintas eras/variantes) y el primer match daba la
-            // unidad equivocada. El prefab real lleva su Tipo en el componente.
-            if (nameMatches > 1)
-            {
-                var want = (Unidad.TipoUnidad)tipo;
-                var porTipo = match;
-                foreach (var f in fields)
-                {
-                    var sc = f.GetValue(gm.unitGenerator) as UnitScriptable;
-                    if (sc == null || sc.Prefab == null) continue;
-                    bool nombreCoincide =
-                        (sc.Prefab.name == prefabName || (sc.imagen != null && sc.imagen.name == prefabName));
-                    if (!nombreCoincide) continue;
-                    var comp = sc.Prefab.GetComponent<Unidad>();
-                    if (comp != null && comp.Tipo == want) { porTipo = sc; break; }
-                }
-                if (porTipo != match)
-                    CivilizameMPPlugin.Log.LogInfo(
-                        $"[LiveSync] UnidadSpawn: '{prefabName}' desambiguado por Tipo={want}");
-                match = porTipo;
             }
 
             gm.unitGenerator.LoadUnit(match.Prefab, x, y, jug, fuerza, movMax,
                 movLeft, vidaLeft, turno, buildThings, pactFuerza, pactBuild, rel);
+        }
+
+        /// <summary>Aplica el snapshot absoluto EV_UNIT_SYNC de un dueño:
+        /// 1) cada unidad esperada que exista localmente se re-alinea (vida,
+        ///    movimiento, religión...), 2) las que falten se crean vía
+        ///    ApplyUnitSpawn (que es idempotente), 3) las locales SOBRANTES
+        ///    (fantasmas de eventos perdidos) se eliminan.</summary>
+        private static void ApplyUnitSync(int owner, BinaryReader r)
+        {
+            var jug = JugFor(owner);
+            if (jug == null) { SkipUnitSyncEntries(r, r.ReadInt32()); return; }
+            int count = r.ReadInt32();
+
+            // Leer el snapshot completo ANTES de mutar nada (stream compartido).
+            var entries = new List<SyncEntry>(count);
+            for (int i = 0; i < count; i++)
+                entries.Add(new SyncEntry
+                {
+                    x = r.ReadInt32(), y = r.ReadInt32(),
+                    fuerza = r.ReadInt32(), movMax = r.ReadInt32(),
+                    movLeft = r.ReadSingle(), vidaLeft = r.ReadSingle(),
+                    turno = r.ReadBoolean(), buildThings = r.ReadInt32(),
+                    pactFuerza = r.ReadInt32(), pactBuild = r.ReadInt32(),
+                    rel = r.ReadInt32(), tipo = r.ReadInt32(),
+                    prefab = r.ReadString(),
+                });
+
+            var claimed = new HashSet<(int, int)>();
+            foreach (var e in entries)
+            {
+                var u = FindUnit(owner, e.x, e.y);
+                if (u != null)
+                {
+                    // Re-alineación suave: solo campos que cambian en el turno.
+                    u.MovLeft = e.movLeft;
+                    u.VidaLeft = e.vidaLeft;
+                    u.Turno = e.turno;
+                    u.BuildThings = e.buildThings;
+                    u.myRel = e.rel;
+                    try { u.ManageHealthBar(); } catch { }
+                }
+                else
+                {
+                    CivilizameMPPlugin.Log.LogInfo(
+                        $"[LiveSync] UNIT_SYNC: spawn faltante del slot {owner} en ({e.x},{e.y}) '{e.prefab}'");
+                    ApplyUnitSpawn(owner, e.x, e.y, e.fuerza, e.movMax, e.movLeft,
+                        e.vidaLeft, e.turno, e.buildThings, e.pactFuerza, e.pactBuild,
+                        e.rel, e.tipo, e.prefab);
+                }
+                claimed.Add((e.x, e.y));
+            }
+
+            // Fantasmas: unidades locales del dueño en casillas que el dueño
+            // autoritativo ya no ocupa. Se borran como ApplyUnitDie.
+            var gm = GameManager.Instance;
+            if (gm == null) return;
+            int n = Math.Min(jug.maxUnidad, jug.Unidades != null ? jug.Unidades.Length : 0);
+            for (int i = 0; i < n; i++)
+            {
+                var u = jug.Unidades[i];
+                if (u == null) continue;
+                if (!claimed.Contains((u.posX, u.posY)))
+                {
+                    CivilizameMPPlugin.Log.LogInfo(
+                        $"[LiveSync] UNIT_SYNC: borrando fantasma del slot {owner} en ({u.posX},{u.posY})");
+                    SetTileUnit(u.posX, u.posY, false);
+                    jug.DeleteUnit(u);
+                    UnityEngine.Object.Destroy(u.gameObject);
+                }
+            }
+        }
+
+        private struct SyncEntry
+        {
+            public int x, y, fuerza, movMax, buildThings, pactFuerza, pactBuild, rel, tipo;
+            public float movLeft, vidaLeft;
+            public bool turno;
+            public string prefab;
+        }
+
+        /// <summary>Descarta los bytes de un snapshot cuyo dueño no existe
+        /// aquí (jugador muerto/eliminado) para no desalinear el stream.</summary>
+        private static void SkipUnitSyncEntries(BinaryReader r, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                r.ReadInt32(); r.ReadInt32();          // x, y
+                r.ReadInt32(); r.ReadInt32();          // fuerza, movMax
+                r.ReadSingle(); r.ReadSingle();        // movLeft, vidaLeft
+                r.ReadBoolean();                       // turno
+                r.ReadInt32(); r.ReadInt32();          // buildThings, pactFuerza
+                r.ReadInt32(); r.ReadInt32();          // pactBuild, rel
+                r.ReadInt32();                         // tipo
+                r.ReadString();                        // prefab
+            }
         }
     }
 }
