@@ -1,10 +1,8 @@
 using System;
 using System.Collections;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using UnityEngine;
@@ -24,16 +22,18 @@ namespace CivilizameMP.Core
     ///    Solo se ofrece actualizar si la remota es MÁS NUEVA que la local.
     ///
     /// 2. Si hay update muestra el cartel MPUpdatePanel:
-    ///      ACTUALIZAR  -> escribe la DLL en %TEMP%, genera un .bat que
-    ///                     espera a que este proceso termine, copia la DLL
-    ///                     sobre BepInEx/plugins/CivilizameMP y vuelve a
-    ///                     abrir el juego; luego Application.Quit().
+    ///      ACTUALIZAR  -> descarga la DLL (si el chequeo fue por version.txt),
+    ///                     verifica su versión y la instala EN EL ACTO sobre
+    ///                     BepInEx/plugins/CivilizameMP (renombrar la DLL en
+    ///                     uso funciona en Windows; comprobado). El juego NO
+    ///                     se reinicia solo: el cartel muestra "Actualización
+    ///                     Descargada. Reinicia para aplicar" con botón OK.
     ///      NO          -> sigue normal; si marcó "No volver a preguntar
     ///                     por esta versión" se guarda en la config
     ///                     (IgnoredUpdateVersion) y no vuelve a ofrecerla.
     ///
-    /// Todo el trabajo de red/archivos va en hilos de fondo; la UI y
-    /// Application.Quit() solo en el hilo principal (máquina de estados).
+    /// Todo el trabajo de red/archivos va en hilos de fondo; la UI solo en
+    /// el hilo principal (máquina de estados).
     /// </summary>
     public class ModUpdater : MonoBehaviour
     {
@@ -48,7 +48,6 @@ namespace CivilizameMP.Core
 
         private volatile bool _checkDone;
         private volatile bool _installDone;
-        private volatile bool _quitPending;
         private string _installError;
         private bool _checkedThisSession;
 
@@ -189,13 +188,6 @@ namespace CivilizameMP.Core
 
         private void Update()
         {
-            if (_quitPending)
-            {
-                _quitPending = false;
-                Application.Quit();
-                return;
-            }
-
             if (_checkDone)
             {
                 _checkDone = false;
@@ -256,14 +248,15 @@ namespace CivilizameMP.Core
                 return;
             }
             _state = State.Offering;
-            panel.SetBusy(false);
+            panel.ResetView();
             panel.SetBody(
                 "Hay una versión nueva del mod disponible.\n\n" +
                 $"Tu versión: {_localVersion}\n" +
                 $"Versión nueva: {remote}\n\n" +
-                "Se descargará y el juego se REINICIARÁ para aplicarla.");
+                "Se descargará e instalará. Al terminar, reinicia el juego para aplicarla.");
             panel.OnAccept = AcceptUpdate;
             panel.OnDecline = DeclineUpdate;
+            panel.OnOk = CloseDonePanel;
             CivilizameMPPlugin.Log.LogInfo($"[Updater] Update disponible: {remote} (local {_localVersion})");
         }
 
@@ -290,7 +283,7 @@ namespace CivilizameMP.Core
             if (panel != null)
             {
                 panel.SetBusy(true);
-                panel.SetBody("Descargando e instalando...\nEl juego se reiniciará en unos segundos.");
+                panel.SetBody("Descargando e instalando...");
             }
 
             ThreadPool.QueueUserWorkItem(_ =>
@@ -319,9 +312,8 @@ namespace CivilizameMP.Core
                             $"[Updater] DLL descargada al aceptar: {data.Length} B (v{real})");
                     }
 
-                    InstallAndRestart(data);
+                    InstallInPlace(data);
                     _installError = null;
-                    _quitPending = true; // Application.Quit() en el hilo principal
                 }
                 catch (Exception ex)
                 {
@@ -345,74 +337,72 @@ namespace CivilizameMP.Core
 
         private void OnInstallFinished()
         {
-            if (_installError == null) return; // el reinicio está en camino
-            _state = State.Idle;
-            CivilizameMPPlugin.Log.LogError($"[Updater] Error instalando la actualización: {_installError}");
             var panel = MPPanelManager.Instance != null
                 ? MPPanelManager.Instance.GetPanel(MPPanelType.Update) as MPUpdatePanel : null;
-            if (panel != null)
+
+            if (_installError != null)
             {
-                panel.SetBusy(false);
-                panel.SetBody("No se pudo instalar la actualización:\n" + _installError +
-                    "\n\nPuedes actualizarla manualmente desde GitHub.");
+                _state = State.Idle;
+                CivilizameMPPlugin.Log.LogError($"[Updater] Error instalando la actualización: {_installError}");
+                if (panel != null)
+                {
+                    panel.ResetView();
+                    panel.SetBody("No se pudo instalar la actualización:\n" + _installError +
+                        "\n\nPuedes actualizarla manualmente desde GitHub.");
+                }
+                return;
             }
+
+            // Instalada: el juego NO se reinicia solo. Mensaje + botón OK,
+            // el usuario cierra y reabre el juego para usar la versión nueva.
+            _state = State.Idle;
+            CivilizameMPPlugin.Log.LogInfo("[Updater] Instalación completada; se aplicará al reiniciar el juego");
+            panel?.ShowDone("Actualización Descargada.\n\nReinicia el juego para aplicar.");
+        }
+
+        /// <summary>Botón OK del cartel "Actualización Descargada": cierra.</summary>
+        private void CloseDonePanel()
+        {
+            _state = State.Idle;
+            MPPanelManager.Instance?.CloseUpdatePanel();
         }
 
         // ------------------------------------------------------------------
-        //  Instalación: %TEMP% + .bat que espera al cierre y reinicia el juego
+        //  Instalación EN EL ACTO (sin .bat, sin reinicio automático)
         // ------------------------------------------------------------------
 
-        private void InstallAndRestart(byte[] data)
+        /// <summary>Reemplaza la DLL del mod en plugins. Renombrar la DLL EN
+        /// USO funciona en Windows (comprobado con el juego corriendo):
+        ///  1) renombra la actual a .old (libera el nombre),
+        ///  2) escribe la nueva con el nombre original,
+        ///  3) borra la .old (Mono la abre con FILE_SHARE_DELETE; si no se
+        ///     pudiera borrar ahora mismo, se limpiará en la próxima update).
+        /// La sesión actual sigue con el código viejo en memoria; la nueva
+        /// versión se carga al reiniciar el juego.</summary>
+        private static void InstallInPlace(byte[] data)
         {
-            int pid = Process.GetCurrentProcess().Id;
-
-            string tempDll = Path.Combine(Path.GetTempPath(), $"CivilizameMP.{pid}.update.dll");
-            File.WriteAllBytes(tempDll, data);
-
             string pluginDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             string target = Path.Combine(pluginDir ?? ".", "CivilizameMP.dll");
-            if (string.IsNullOrEmpty(target) || !Directory.Exists(Path.GetDirectoryName(target)))
+            if (string.IsNullOrEmpty(pluginDir) || !Directory.Exists(pluginDir))
                 throw new Exception("No se encontró la carpeta del mod en BepInEx/plugins");
 
-            string exe = Process.GetCurrentProcess().MainModule != null
-                ? Process.GetCurrentProcess().MainModule.FileName : null;
-            if (string.IsNullOrEmpty(exe) || !File.Exists(exe))
-                throw new Exception("No se encontró el ejecutable del juego");
+            string old = target + ".old";
+            try { if (File.Exists(old)) File.Delete(old); }
+            catch { /* residual de una update anterior aún mapeada */ }
 
-            // El .bat se escribe en ASCII puro; las rutas van como ARGUMENTOS
-            // (cmd las recibe por la línea de comandos, que sí es Unicode).
-            string bat = Path.Combine(Path.GetTempPath(), $"CivilizameMP.{pid}.update.bat");
-            var sb = new StringBuilder();
-            sb.AppendLine("@echo off");
-            sb.AppendLine(":waitloop");
-            sb.AppendLine($"tasklist /FI \"PID eq {pid}\" 2>NUL | find /I \"{pid}\" >NUL");
-            sb.AppendLine("if not errorlevel 1 (");
-            sb.AppendLine("  ping -n 2 127.0.0.1 >NUL");
-            sb.AppendLine("  goto waitloop");
-            sb.AppendLine(")");
-            sb.AppendLine("copy /Y \"%~1\" \"%~2\" >NUL");
-            sb.AppendLine("del \"%~1\" 2>NUL");
-            // CRÍTICO: doorstop 4.x marca DOORSTOP_DISABLE=TRUE en el entorno
-            // del proceso del juego para no engancharse dos veces, y el .bat
-            // (hijo) la HEREDA. Sin esto, el juego reiniciado arranca con
-            // doorstop auto-desactivado (sin BepInEx).
-            sb.AppendLine("set \"DOORSTOP_DISABLE=\"");
-            sb.AppendLine("start \"\" \"%~3\"");
-            sb.AppendLine("del \"%~f0\" 2>NUL");
-            sb.AppendLine("exit");
-            File.WriteAllText(bat, sb.ToString(), new ASCIIEncoding());
-
-            CivilizameMPPlugin.Log.LogInfo($"[Updater] Instalando: {tempDll} -> {target}; reiniciando {exe}");
-
-            var psi = new ProcessStartInfo
+            bool moved = false;
+            try
             {
-                FileName = bat,
-                Arguments = $"\"{tempDll}\" \"{target}\" \"{exe}\"",
-                UseShellExecute = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-            Process.Start(psi);
-            // Application.Quit() lo lanza el hilo principal al ver _quitPending.
+                File.Move(target, old);
+                moved = true;
+                File.WriteAllBytes(target, data);
+            }
+            catch
+            {
+                if (moved) { try { File.Move(old, target); } catch { } }
+                throw;
+            }
+            try { File.Delete(old); } catch { }
         }
     }
 }
