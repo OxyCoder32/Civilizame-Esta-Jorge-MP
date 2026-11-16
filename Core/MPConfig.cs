@@ -57,10 +57,9 @@ namespace CivilizameMP.Core
                 "UpdateVersionUrl",
                 "https://raw.githubusercontent.com/OxyCoder32/Civilizame-Esta-Jorge-MP/main/Compiled/version.txt",
                 "URL raw de Compiled/version.txt: un archivo de texto con SOLO el\n" +
-                "número de versión publicada (p.ej. 1.1.1). Es lo que se consulta\n" +
-                "en cada arranque (pesa casi nada). Si falta o falla, se usa el\n" +
-                "método antiguo (descargar la DLL y leer su versión).\n" +
-                "IMPORTANTE: sube este archivo a la vez que cada DLL nueva."
+                "número de versión publicada (p.ej. 1.0.1). Es lo único que se\n" +
+                "consulta en cada arranque. IMPORTANTE: sube este archivo a la\n" +
+                "vez que cada DLL nueva."
             );
 
             IgnoredUpdateVersion = config.Bind(
