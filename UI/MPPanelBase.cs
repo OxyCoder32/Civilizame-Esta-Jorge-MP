@@ -188,6 +188,55 @@ namespace CivilizameMP.UI
             return input;
         }
         
+        /// <summary>Crea un Toggle (casilla) con etiqueta a la derecha.
+        /// Devuelve el Toggle para leer .isOn.</summary>
+        protected Toggle CreateToggle(string text, Transform parent, Vector2 position, float fontSize = 18)
+        {
+            var toggleObj = new GameObject(text + "Toggle");
+            toggleObj.transform.SetParent(parent, false);
+            var bgImage = toggleObj.AddComponent<Image>();
+            bgImage.color = new Color(0.15f, 0.15f, 0.15f, 1f);
+            bgImage.raycastTarget = true;
+            var rect = toggleObj.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = position;
+            rect.sizeDelta = new Vector2(26, 26);
+
+            var toggle = toggleObj.AddComponent<Toggle>();
+            toggle.targetGraphic = bgImage;
+
+            var checkObj = new GameObject("Check");
+            checkObj.transform.SetParent(toggleObj.transform, false);
+            var checkImage = checkObj.AddComponent<Image>();
+            checkImage.color = new Color(0.3f, 0.75f, 0.3f, 1f);
+            checkImage.raycastTarget = false;
+            var checkRect = checkObj.GetComponent<RectTransform>();
+            checkRect.anchorMin = new Vector2(0.15f, 0.15f);
+            checkRect.anchorMax = new Vector2(0.85f, 0.85f);
+            checkRect.offsetMin = Vector2.zero;
+            checkRect.offsetMax = Vector2.zero;
+            toggle.graphic = checkImage;
+
+            var labelObj = new GameObject("Label");
+            labelObj.transform.SetParent(toggleObj.transform, false);
+            var tmp = labelObj.AddComponent<TextMeshProUGUI>();
+            tmp.text = text;
+            tmp.fontSize = fontSize;
+            tmp.color = new Color(0.85f, 0.85f, 0.85f, 1f);
+            tmp.alignment = TextAlignmentOptions.Left;
+            tmp.raycastTarget = false;
+            var labelRect = labelObj.GetComponent<RectTransform>();
+            labelRect.anchorMin = new Vector2(1f, 0f);
+            labelRect.anchorMax = new Vector2(1f, 1f);
+            labelRect.pivot = new Vector2(0f, 0.5f);
+            labelRect.anchoredPosition = new Vector2(8, 0);
+            labelRect.sizeDelta = new Vector2(440, 26);
+
+            toggle.isOn = false;
+            return toggle;
+        }
+
         protected TextMeshProUGUI CreateLabel(string text, Transform parent, Vector2 position, float fontSize = 28)
         {
             var labelObj = new GameObject(text + "Label");

@@ -202,7 +202,12 @@ namespace CivilizameMP.Network
                     EmptyRoomTtl = 0,
                     // Janela de rejoin: si la carga de un mapa grande corta la conexión,
                     // el jugador puede reentrar con el mismo ActorNumber durante 2 min.
-                    PlayerTtl = 120000
+                    PlayerTtl = 120000,
+                    // Versión del mod en las propiedades de la sala: los clientes
+                    // la comparan al entrar y detectan hosts con otra versión.
+                    CustomRoomProperties = new ExitGames.Client.Photon.Hashtable
+                        { { "mpv", ModVersion.Current } },
+                    CustomRoomPropertiesForLobby = new[] { "mpv" }
                 }
             };
             _client.OpCreateRoom(opts);
@@ -464,6 +469,21 @@ namespace CivilizameMP.Network
 
             state.LocalActorNumber = _client.LocalPlayer.ActorNumber;
             state.LocalPlayerName = _client.LocalPlayer.NickName;
+
+            // Publicar nuestra versión del mod como propiedad del jugador y
+            // comprobar la de la sala: un cliente que entra donde hay un host
+            // con OTRA versión recibe el panel de error y sale automáticamente.
+            try
+            {
+                _client.LocalPlayer.SetCustomProperties(
+                    new ExitGames.Client.Photon.Hashtable { { "mpv", ModVersion.Current } });
+            }
+            catch (Exception ex)
+            {
+                CivilizameMPPlugin.Log.LogWarning($"[Photon] No se pudo publicar la versión del mod: {ex.Message}");
+            }
+            CheckHostVersionMismatch();
+
             if (_client.CurrentRoom?.Players != null)
             {
                 foreach (var kvp in _client.CurrentRoom.Players)
@@ -482,6 +502,42 @@ namespace CivilizameMP.Network
             OnPlayerJoinedEvent?.Invoke(newPlayer);
         }
 
+        /// <summary>CLIENTE: compara la versión del mod que publicó el host
+        /// (propiedad de sala "mpv") con la local. Si difiere —o si la sala
+        /// no la trae, porque el host usa un mod más antiguo— muestra el
+        /// panel de error de versión y abandona la sala.</summary>
+        private void CheckHostVersionMismatch()
+        {
+            var state = MPStateManager.Instance;
+            if (state == null || _client?.CurrentRoom == null) return;
+            if (_client.LocalPlayer != null && _client.LocalPlayer.IsMasterClient)
+                return; // el host se compara consigo mismo: nunca hay mismatch
+
+            string hostVer = null;
+            object raw;
+            if (_client.CurrentRoom.CustomProperties != null &&
+                _client.CurrentRoom.CustomProperties.TryGetValue("mpv", out raw))
+                hostVer = raw as string;
+
+            bool mismatch = string.IsNullOrEmpty(hostVer) || hostVer != ModVersion.Current;
+            if (!mismatch) return;
+
+            string shown = string.IsNullOrEmpty(hostVer)
+                ? "desconocida (mod más antiguo)" : hostVer;
+
+            CivilizameMPPlugin.Log.LogWarning(
+                $"[Photon] El host usa otra versión del mod (host={shown}, local={ModVersion.Current}). Saliendo de la sala.");
+
+            state.LastError = $"El host tiene otra versión del mod (host: {shown}, tuya: {ModVersion.Current})";
+            CivilizameMP.UI.MPPanelManager.Instance?.ShowError(
+                "ERROR DE VERSIÓN\n\nEl host tiene otra versión del mod.\n" +
+                $"Versión del host: {shown}\n" +
+                $"Tu versión: {ModVersion.Current}\n\n" +
+                "Ambos deben instalar la misma versión para jugar.\n" +
+                "Usa el actualizador automático del mod o descarga la DLL de GitHub.");
+            LeaveRoom();
+        }
+
         void IInRoomCallbacks.OnPlayerLeftRoom(Player otherPlayer)
         {
             if (otherPlayer == null) return;
@@ -498,7 +554,18 @@ namespace CivilizameMP.Network
         }
 
         void IInRoomCallbacks.OnRoomPropertiesUpdate(Hashtable propertiesThatChanged) { }
-        void IInRoomCallbacks.OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps) { }
+        void IInRoomCallbacks.OnPlayerPropertiesUpdate(Player targetPlayer, Hashtable changedProps)
+        {
+            // Aviso en el host: un cliente entró (o reentró) publicando una
+            // versión del mod distinta a la nuestra. Solo log: el bloqueo
+            // real lo hace el propio cliente al comparar con la sala.
+            if (changedProps == null || !changedProps.ContainsKey("mpv")) return;
+            if (_client?.LocalPlayer == null || !_client.LocalPlayer.IsMasterClient) return;
+            string v = changedProps["mpv"] as string;
+            if (!string.IsNullOrEmpty(v) && v != ModVersion.Current)
+                CivilizameMPPlugin.Log.LogWarning(
+                    $"[Photon] {targetPlayer?.NickName} usa otra versión del mod ({v} vs {ModVersion.Current}).");
+        }
 
         void IMatchmakingCallbacks.OnCreateRoomFailed(short returnCode, string message)
         {

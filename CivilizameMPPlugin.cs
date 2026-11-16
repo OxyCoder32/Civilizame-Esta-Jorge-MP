@@ -8,7 +8,7 @@ using CivilizameMP.UI;
 
 namespace CivilizameMP
 {
-    [BepInPlugin("com.civilizamemp.mod", "Civilízame Multiplayer", "1.0.0")]
+    [BepInPlugin("com.civilizamemp.mod", "Civilízame Multiplayer", CivilizameMP.Core.ModVersion.VERSION)]
     public class CivilizameMPPlugin : BaseUnityPlugin
     {
         public static CivilizameMPPlugin Instance { get; private set; }
@@ -49,6 +49,12 @@ namespace CivilizameMP
             var panelObj = new GameObject("MPPanelManager");
             panelObj.AddComponent<MPPanelManager>();
             DontDestroyOnLoad(panelObj);
+
+            // Actualizador automático: al cargar el menú comprueba la DLL
+            // oficial en GitHub y ofrece instalar+reiniciar si hay versión nueva.
+            var updaterObj = new GameObject("ModUpdater");
+            updaterObj.AddComponent<Core.ModUpdater>();
+            DontDestroyOnLoad(updaterObj);
 
             // Canal en vivo: crea ya el runner que rutea los eventos LIVE.
             LiveSync.EnsureRunner();

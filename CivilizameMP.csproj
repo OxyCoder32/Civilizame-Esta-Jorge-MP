@@ -21,6 +21,13 @@
       <HintPath>..\CivilízameEstaJorge_64\BepInEx\core\BepInEx.dll</HintPath>
       <Private>false</Private>
     </Reference>
+
+    <!-- Mono.Cecil: lo trae BepInEx en core/ (lo usa el actualizador para
+         leer la versión de la DLL remota sin cargarla ni ejecutarla) -->
+    <Reference Include="Mono.Cecil">
+      <HintPath>..\CivilízameEstaJorge_64\BepInEx\core\Mono.Cecil.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     
     <!-- Harmony -->
     <Reference Include="0Harmony">

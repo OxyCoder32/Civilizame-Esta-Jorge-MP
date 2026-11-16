@@ -13,7 +13,8 @@ namespace CivilizameMP.UI
         Join,
         Lobby,
         Waiting,
-        Error
+        Error,
+        Update
     }
 
     public class MPPanelManager : MonoBehaviour
@@ -126,6 +127,10 @@ namespace CivilizameMP.UI
                     panelObj = new GameObject("MPErrorPanel");
                     panel = panelObj.AddComponent<MPErrorPanel>();
                     break;
+                case MPPanelType.Update:
+                    panelObj = new GameObject("MPUpdatePanel");
+                    panel = panelObj.AddComponent<MPUpdatePanel>();
+                    break;
             }
             
             if (panelObj != null && panel != null)
@@ -146,6 +151,45 @@ namespace CivilizameMP.UI
                 ep.SetMessage(message);
                 ShowPanel(MPPanelType.Error);
             }
+        }
+
+        /// <summary>Recordatorio del panel visible antes del cartel de update,
+        /// para restaurarlo al cerrarlo (normalmente el menú principal del mod).</summary>
+        private MPPanelType _panelBeforeUpdate = MPPanelType.None;
+
+        /// <summary>Muestra el cartel de actualización y devuelve el panel
+        /// para que ModUpdater conecte textos y callbacks.</summary>
+        public MPUpdatePanel ShowUpdatePanel()
+        {
+            if (_currentPanel != MPPanelType.Update)
+                _panelBeforeUpdate = _currentPanel;
+
+            if (!_panels.TryGetValue(MPPanelType.Update, out var panel) || panel == null)
+            {
+                var obj = new GameObject("MPUpdatePanel");
+                panel = obj.AddComponent<MPUpdatePanel>();
+                obj.transform.SetParent(_mainCanvas.transform, false);
+                panel.Initialize();
+                _panels[MPPanelType.Update] = panel;
+            }
+            ShowPanel(MPPanelType.Update);
+            return panel as MPUpdatePanel;
+        }
+
+        /// <summary>Cierra el cartel de update y restaura el panel anterior.</summary>
+        public void CloseUpdatePanel()
+        {
+            if (_currentPanel == MPPanelType.Update)
+            {
+                var panel = _panels.TryGetValue(MPPanelType.Update, out var p) ? p : null;
+                if (panel != null) panel.Hide();
+                _currentPanel = MPPanelType.None;
+            }
+            var before = _panelBeforeUpdate;
+            _panelBeforeUpdate = MPPanelType.None;
+            if (before == MPPanelType.MainMenu || before == MPPanelType.Host ||
+                before == MPPanelType.Join || before == MPPanelType.Lobby)
+                ShowPanel(before);
         }
 
         public void DestroyAllPanels()

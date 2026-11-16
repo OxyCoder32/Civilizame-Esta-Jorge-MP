@@ -7,6 +7,12 @@ namespace CivilizameMP.Core
         public static ConfigEntry<string> PhotonAppID { get; private set; }
         public static ConfigEntry<string> DefaultPlayerName { get; private set; }
         public static ConfigEntry<bool> EnableLogging { get; private set; }
+        public static ConfigEntry<string> UpdateUrl { get; private set; }
+        public static ConfigEntry<string> IgnoredUpdateVersion { get; private set; }
+
+        /// <summary>Fuente original de la configuración (para guardar de
+        /// inmediato al marcar "no volver a preguntar" en el actualizador).</summary>
+        public static ConfigFile Source { get; private set; }
         
         public static void Load(ConfigFile config)
         {
@@ -33,6 +39,24 @@ namespace CivilizameMP.Core
                 "EnableLogging", 
                 true, 
                 "Activar logging detallado en BepInEx"
+            );
+
+            Source = config;
+
+            UpdateUrl = config.Bind(
+                "Updater",
+                "UpdateUrl",
+                "https://raw.githubusercontent.com/OxyCoder32/Civilizame-Esta-Jorge-MP/main/Compiled/CivilizameMP.dll",
+                "URL raw de la DLL oficial del mod en GitHub. El actualizador la\n" +
+                "descarga al abrir el juego y la compara con la versión instalada."
+            );
+
+            IgnoredUpdateVersion = config.Bind(
+                "Updater",
+                "IgnoredUpdateVersion",
+                "",
+                "Versión que NO se volverá a ofrecer (se rellena al marcar\n" +
+                "'No volver a preguntar por esta versión' en el cartel de actualización)."
             );
             
             // Verificar AppID
