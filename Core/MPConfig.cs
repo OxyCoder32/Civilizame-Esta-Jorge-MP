@@ -8,6 +8,7 @@ namespace CivilizameMP.Core
         public static ConfigEntry<string> DefaultPlayerName { get; private set; }
         public static ConfigEntry<bool> EnableLogging { get; private set; }
         public static ConfigEntry<string> UpdateUrl { get; private set; }
+        public static ConfigEntry<string> UpdateVersionUrl { get; private set; }
         public static ConfigEntry<string> IgnoredUpdateVersion { get; private set; }
 
         /// <summary>Fuente original de la configuración (para guardar de
@@ -47,8 +48,19 @@ namespace CivilizameMP.Core
                 "Updater",
                 "UpdateUrl",
                 "https://raw.githubusercontent.com/OxyCoder32/Civilizame-Esta-Jorge-MP/main/Compiled/CivilizameMP.dll",
-                "URL raw de la DLL oficial del mod en GitHub. El actualizador la\n" +
-                "descarga al abrir el juego y la compara con la versión instalada."
+                "URL raw de la DLL oficial del mod en GitHub. Se descarga SOLO al\n" +
+                "aceptar instalar la actualización."
+            );
+
+            UpdateVersionUrl = config.Bind(
+                "Updater",
+                "UpdateVersionUrl",
+                "https://raw.githubusercontent.com/OxyCoder32/Civilizame-Esta-Jorge-MP/main/Compiled/version.txt",
+                "URL raw de Compiled/version.txt: un archivo de texto con SOLO el\n" +
+                "número de versión publicada (p.ej. 1.1.1). Es lo que se consulta\n" +
+                "en cada arranque (pesa casi nada). Si falta o falla, se usa el\n" +
+                "método antiguo (descargar la DLL y leer su versión).\n" +
+                "IMPORTANTE: sube este archivo a la vez que cada DLL nueva."
             );
 
             IgnoredUpdateVersion = config.Bind(

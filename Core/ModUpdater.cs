@@ -75,9 +75,8 @@ namespace CivilizameMP.Core
 
         private IEnumerator CheckWhenSettled()
         {
-            // Dejar que el menú termine de cargar y que cualquier connexión
-            // pendiente arranque antes de abrir el cartel.
-            yield return new WaitForSeconds(6f);
+            // Menú cargado: chequear ya (version.txt es un archivo diminuto).
+            yield return new WaitForSeconds(2f);
             StartCheck();
         }
 
@@ -100,17 +99,46 @@ namespace CivilizameMP.Core
             {
                 try
                 {
-                    byte[] data = Download(url);
-                    if (data == null || data.Length < 1024)
-                        throw new Exception("DLL remota vacía o demasiado pequeña");
+                    byte[] data = null;
+                    string remoteVersion = null;
 
-                    string remoteVersion = ReadDllVersion(data);
+                    // 1) Intento LIGERO: Compiled/version.txt (un archivo de
+                    //    texto minúsculo con la versión publicada). Evita
+                    //    descargar la DLL entera en cada arranque.
+                    string versionUrl = MPConfig.UpdateVersionUrl != null
+                        ? MPConfig.UpdateVersionUrl.Value : null;
+                    if (!string.IsNullOrEmpty(versionUrl))
+                    {
+                        try
+                        {
+                            string txt = Encoding.UTF8.GetString(Download(versionUrl));
+                            remoteVersion = CleanVersion(txt);
+                            if (remoteVersion != null)
+                                CivilizameMPPlugin.Log.LogInfo(
+                                    $"[Updater] version.txt leído: {remoteVersion}");
+                        }
+                        catch (Exception ex)
+                        {
+                            CivilizameMPPlugin.Log.LogInfo(
+                                $"[Updater] version.txt no disponible ({ex.Message}); leyendo la DLL completa");
+                        }
+                    }
+
+                    // 2) Respaldo: descargar la DLL y leer su [BepInPlugin]
+                    //    con Mono.Cecil (método antiguo, sin ejecutar nada).
                     if (remoteVersion == null)
-                        throw new Exception("No se pudo leer la versión de la DLL remota");
+                    {
+                        data = Download(url);
+                        if (data == null || data.Length < 1024)
+                            throw new Exception("DLL remota vacía o demasiado pequeña");
+                        remoteVersion = ModVersion.ReadFromDllBytes(data);
+                        if (remoteVersion == null)
+                            throw new Exception("No se pudo leer la versión de la DLL remota");
+                    }
 
                     lock (Instance) { Instance._remoteBytes = data; Instance._remoteVersion = remoteVersion; }
                     CivilizameMPPlugin.Log.LogInfo(
-                        $"[Updater] DLL remota leída: versión {remoteVersion} ({data.Length} B); local {_localVersion}");
+                        $"[Updater] Remota: versión {remoteVersion}{(data != null ? $" ({data.Length} B)" : " (la DLL se descargará solo si aceptas)")}; local {_localVersion}");
                     _checkDone = true; // lo evalúa Update() en el hilo principal
                 }
                 catch (Exception ex)
@@ -121,8 +149,26 @@ namespace CivilizameMP.Core
             });
         }
 
+        /// <summary>Limpia el contenido de version.txt: primera línea con
+        /// formato Major[.Minor[.Build[.Revision]]] sin espacios.</summary>
+        private static string CleanVersion(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return null;
+            string line = raw.Trim();
+            int nl = line.IndexOfAny(new[] { '\r', '\n' });
+            if (nl > 0) line = line.Substring(0, nl);
+            line = line.Trim();
+            Version v;
+            return Version.TryParse(line, out v) ? line : null;
+        }
+
         private static byte[] Download(string url)
         {
+            // Cache-buster: el CDN de GitHub (raw.githubusercontent) sirve por
+            // RUTA y cachea la respuesta (~5 min o más). Con un parámetro
+            // único por descarga garantizamos leer la versión recién publicada.
+            string sep = url.Contains("?") ? "&" : "?";
+            url = url + sep + "t=" + DateTime.UtcNow.Ticks;
             var req = (HttpWebRequest)WebRequest.Create(url);
             req.Method = "GET";
             req.Timeout = 20000;
@@ -135,13 +181,6 @@ namespace CivilizameMP.Core
                 resp.GetResponseStream().CopyTo(ms);
                 return ms.ToArray();
             }
-        }
-
-        /// <summary>Versión de la DLL remota, leída del atributo [BepInPlugin]
-        /// SIN ejecutar el mod (misma fuente que la copia local).</summary>
-        private static string ReadDllVersion(byte[] data)
-        {
-            return ModVersion.ReadFromDllBytes(data);
         }
 
         // ------------------------------------------------------------------
@@ -235,13 +274,14 @@ namespace CivilizameMP.Core
         private void AcceptUpdate()
         {
             if (_state == State.Downloading) return;
-            byte[] data;
-            lock (Instance) data = _remoteBytes;
-            if (data == null)
+            lock (Instance)
             {
-                _state = State.Idle;
-                MPPanelManager.Instance?.CloseUpdatePanel();
-                return;
+                if (_remoteBytes == null && _remoteVersion == null)
+                {
+                    _state = State.Idle;
+                    MPPanelManager.Instance?.CloseUpdatePanel();
+                    return;
+                }
             }
 
             _state = State.Downloading;
@@ -257,6 +297,28 @@ namespace CivilizameMP.Core
             {
                 try
                 {
+                    byte[] data;
+                    lock (Instance) data = _remoteBytes;
+
+                    // Chequeo por version.txt: la DLL NO estaba descargada.
+                    // Se baja ahora (una sola vez) y se verifica que su
+                    // versión coincide con version.txt (evita downgrades).
+                    if (data == null)
+                    {
+                        string url = MPConfig.UpdateUrl != null ? MPConfig.UpdateUrl.Value : null;
+                        if (string.IsNullOrEmpty(url))
+                            throw new Exception("URL de actualización no configurada");
+                        data = Download(url);
+                        string real = ModVersion.ReadFromDllBytes(data);
+                        string esperada;
+                        lock (Instance) esperada = _remoteVersion;
+                        if (real != esperada)
+                            throw new Exception($"La DLL del repo es v{real} pero version.txt dice v{esperada}");
+                        lock (Instance) _remoteBytes = data;
+                        CivilizameMPPlugin.Log.LogInfo(
+                            $"[Updater] DLL descargada al aceptar: {data.Length} B (v{real})");
+                    }
+
                     InstallAndRestart(data);
                     _installError = null;
                     _quitPending = true; // Application.Quit() en el hilo principal
@@ -330,6 +392,11 @@ namespace CivilizameMP.Core
             sb.AppendLine(")");
             sb.AppendLine("copy /Y \"%~1\" \"%~2\" >NUL");
             sb.AppendLine("del \"%~1\" 2>NUL");
+            // CRÍTICO: doorstop 4.x marca DOORSTOP_DISABLE=TRUE en el entorno
+            // del proceso del juego para no engancharse dos veces, y el .bat
+            // (hijo) la HEREDA. Sin esto, el juego reiniciado arranca con
+            // doorstop auto-desactivado (sin BepInEx).
+            sb.AppendLine("set \"DOORSTOP_DISABLE=\"");
             sb.AppendLine("start \"\" \"%~3\"");
             sb.AppendLine("del \"%~f0\" 2>NUL");
             sb.AppendLine("exit");
