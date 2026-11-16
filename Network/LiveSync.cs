@@ -975,6 +975,13 @@ namespace CivilizameMP.Network
             byte ev;
             if (!ParseHeader(payload, out origin, out seq, out ev)) return;
 
+            // Eco del RELAY: el host re-transmite los eventos de clientes y
+            // el remitente original se re-encuentra el suyo (el sender de
+            // Photon del eco es el HOST, así que el filtro de arriba no lo
+            // caza). El ORIGEN del payload sí lo identifica: ignorar todo
+            // evento cuya acción partió de esta PC (misma regla que TickPending).
+            if (origin == st.LocalActorNumber) return;
+
             CivilizameMPPlugin.Log.LogInfo(
                 $"[LiveSync←] {NameOf(ev)} de actor {origin} (seq {seq}, host={st.IsHost})");
 
